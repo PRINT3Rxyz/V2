@@ -14,5 +14,6 @@ docs/
 .env.enc
 
 notes.md
+report.md
 /test/Tests.md
 remappings.json

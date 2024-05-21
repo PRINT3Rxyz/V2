@@ -1,3 +1,5 @@
+const { Buffer } = await import("node:buffer");
+
 const timestampUnix = Number(args[0]);
 const timeStart = timestampUnix - 1;
 const timeEnd = timestampUnix;
@@ -9,9 +11,12 @@ if (!secrets.apiKey) {
   );
 }
 
-const cmcRequest = Functions.makeHttpRequest({
+const cmcRequest = await Functions.makeHttpRequest({
   url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical`,
-  headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+  headers: {
+    "Content-Type": "application/json",
+    "X-CMC_PRO_API_KEY": secrets.apiKey,
+  },
   params: {
     symbol: tickers,
     time_start: timeStart,
@@ -19,12 +24,12 @@ const cmcRequest = Functions.makeHttpRequest({
   },
 });
 
+console.log("Cmc Request: ", cmcRequest);
+
 const cmcResponse = await cmcRequest;
 
-if (cmcResponse.error) {
-  console.error("Request failed with status:", cmcResponse.status);
-  console.error("Error details:", cmcResponse);
-  throw new Error(`Request Failed with status ${cmcResponse.status}`);
+if (cmcResponse.status !== 200) {
+  throw new Error('GET Request to CMC API Failed');
 }
 
 const data = cmcResponse.data.data;

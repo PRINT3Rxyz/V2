@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import {Casting} from "./Casting.sol";
 
+/// @dev Library aggregating math functions from popular libraries like Solady, Solmate & Prb Math
 library MathUtils {
     using Casting for uint256;
     using Casting for int256;

@@ -35,7 +35,7 @@ const makeRequestSepolia = async () => {
     .toString();
 
   // Get the Timestamp in Seconds
-  const timestamp = Date.now() / 1000;
+  const timestamp = Math.floor(Date.now() / 1000);
 
   const args = [timestamp.toString(), "BTC", "ETH", "USDC"];
   const secrets = { apiKey: process.env.COINMARKETCAP_API_KEY };
