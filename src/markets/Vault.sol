@@ -14,7 +14,6 @@ import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
 import {IFeeDistributor} from "../rewards/interfaces/IFeeDistributor.sol";
 import {Units} from "../libraries/Units.sol";
-import {console2} from "forge-std/Test.sol";
 
 contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
     using SafeTransferLib for IERC20;
@@ -375,10 +374,6 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
      * =========================================== Getter Functions ===========================================
      */
     function totalAvailableLiquidity(bool _isLong) external view returns (uint256 total) {
-        console2.log("longTokenBalance: ", longTokenBalance);
-        console2.log("longTokensReserved: ", longTokensReserved);
-        console2.log("shortTokenBalance: ", shortTokenBalance);
-        console2.log("shortTokensReserved: ", shortTokensReserved);
         total = _isLong ? longTokenBalance - longTokensReserved : shortTokenBalance - shortTokensReserved;
     }
 }

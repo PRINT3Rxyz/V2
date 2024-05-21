@@ -12,7 +12,6 @@ import {Units} from "../libraries/Units.sol";
 import {MarketUtils} from "../markets/MarketUtils.sol";
 import {MathUtils} from "../libraries/MathUtils.sol";
 import {MarketId} from "../types/MarketId.sol";
-import {console2} from "forge-std/Test.sol";
 
 /// @dev Library containing all the data types used throughout the protocol
 library Position {
@@ -156,8 +155,7 @@ library Position {
         uint256 _collateralUsd
     ) internal view {
         uint8 maxLeverage = market.getMaxLeverage(_id, _ticker);
-        console2.log("Collateral: ", _collateralUsd);
-        console2.log("Size: ", _sizeUsd);
+
         if (_collateralUsd > _sizeUsd) revert Position_CollateralExceedsSize();
         uint256 leverage = _sizeUsd / _collateralUsd;
         if (leverage < MIN_LEVERAGE) revert Position_BelowMinLeverage();
@@ -365,11 +363,7 @@ library Position {
     ) internal view returns (int256 fundingFeeUsd, int256 nextFundingAccrued) {
         (, nextFundingAccrued) = Funding.calculateNextFunding(_id, market, _ticker, _indexPrice);
 
-        console2.log("Next Funding Accrued: ", nextFundingAccrued);
-
         fundingFeeUsd = _sizeDelta.toInt256().percentageUsd(nextFundingAccrued - _entryFundingAccrued);
-
-        console2.log("Funding Fee USD: ", fundingFeeUsd);
     }
 
     /// @dev Calculates the total funding owed by a position in USD
@@ -378,10 +372,7 @@ library Position {
         view
         returns (int256)
     {
-        console2.log("Failing Here?");
         (, int256 nextFundingAccrued) = Funding.calculateNextFunding(_id, market, _position.ticker, _indexPrice);
-
-        console2.log("Next Funding Accrued: ", nextFundingAccrued);
 
         return _position.size.toInt256().percentageInt(nextFundingAccrued - _position.fundingParams.lastFundingAccrued);
     }
@@ -473,11 +464,7 @@ library Position {
         int256 positionPnl =
             getPositionPnl(_positionSizeUsd, _weightedAvgEntryPrice, _impactedPrice, _indexBaseUnit, _isLong);
 
-        console2.log("Position Pnl: ", positionPnl);
-
         int256 realizedPnlUsd = positionPnl.percentageSigned(_sizeDeltaUsd, _positionSizeUsd);
-
-        console2.log("Realized Pnl: ", realizedPnlUsd);
 
         return realizedPnlUsd.fromUsdToSigned(_collateralTokenPrice, _collateralBaseUnit);
     }

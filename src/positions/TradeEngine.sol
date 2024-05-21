@@ -16,7 +16,6 @@ import {Casting} from "../libraries/Casting.sol";
 import {MarketId} from "../types/MarketId.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
-import {console2} from "forge-std/Test.sol";
 
 /// @notice Library responsible for handling all execution logic associated with trades
 /// @dev Functions are external to avoid bytecode size issues.
@@ -394,8 +393,6 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     ) private {
         _accumulateFees(_id, vault, _feeState, _position.isLong);
 
-        console2.log("Realized Pnl: ", _feeState.realizedPnl);
-
         vault.updatePoolBalance(_feeState.realizedPnl.abs(), _position.isLong, _feeState.realizedPnl < 0);
 
         if (_position.size == 0 || _position.collateral == 0) {
@@ -507,8 +504,6 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         if (_feeState.affiliateRebate > 0) {
             referralStorage.accumulateAffiliateRewards(_id, _feeState.referrer, _isLong, _feeState.affiliateRebate);
         }
-
-        console2.log("Funding Fee: ", _feeState.fundingFee);
 
         vault.updatePoolBalance(_feeState.fundingFee.abs(), _isLong, _feeState.fundingFee < 0);
     }

@@ -7,7 +7,6 @@ import {Casting} from "./Casting.sol";
 import {MathUtils} from "./MathUtils.sol";
 import {Pool} from "../markets/Pool.sol";
 import {MarketId} from "../types/MarketId.sol";
-import {console2} from "forge-std/Test.sol";
 
 /// @dev Library for Funding Related Calculations
 library Funding {
@@ -44,11 +43,7 @@ library Funding {
         pool.fundingRateVelocity =
             getCurrentVelocity(market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale).toInt64();
 
-        console2.log("Old Funding Rate: ", pool.fundingRate);
-        console2.log("Old Funding Accrued: ", pool.fundingAccruedUsd);
         (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _ticker, _indexPrice);
-        console2.log("New Funding Rate: ", pool.fundingRate);
-        console2.log("New Funding Accrued: ", pool.fundingAccruedUsd);
     }
 
     function calculateNextFunding(MarketId _id, IMarket market, string calldata _ticker, uint256 _indexPrice)
@@ -57,9 +52,6 @@ library Funding {
         returns (int64, int256)
     {
         (int64 fundingRate, int256 unrecordedFunding) = _getUnrecordedFundingWithRate(_id, market, _ticker, _indexPrice);
-
-        console2.log("FundingRate: ", fundingRate);
-        console2.log("UnrecordedFunding: ", unrecordedFunding);
 
         return (fundingRate, market.getFundingAccrued(_id, _ticker) + unrecordedFunding);
     }
@@ -81,8 +73,6 @@ library Funding {
         //                    = 0 + 0.0025 * 0.33564815
         //                    = 0.00083912
         (int64 fundingRate, int64 fundingRateVelocity) = market.getFundingRates(_id, _ticker);
-        console2.log("FundingRate: ", fundingRate);
-        console2.log("FundingRateVelocity: ", fundingRateVelocity);
 
         int256 currentFundingRate =
             fundingRate + fundingRateVelocity.sMulWad(_getProportionalFundingElapsed(_id, market, _ticker));
@@ -132,13 +122,7 @@ library Funding {
     {
         uint48 timeElapsed = _blockTimestamp() - market.getLastUpdate(_id, _ticker);
 
-        console2.log("Time Elapsed: ", timeElapsed);
-
-        console2.log("Time Elapsed * Seconds in Day: ", timeElapsed * SECONDS_IN_DAY);
-
         proportionalFundingElapsed = timeElapsed.divWad(SECONDS_IN_DAY).toInt256();
-
-        console2.log("Proportional Funding Elapsed: ", proportionalFundingElapsed);
     }
 
     /**
@@ -151,16 +135,11 @@ library Funding {
     {
         fundingRate = getCurrentFundingRate(_id, market, _ticker);
 
-        console2.log("proportionalFundingElapsed", _getProportionalFundingElapsed(_id, market, _ticker));
-        console2.log("indexPrice", _indexPrice.toInt256());
-
         (int256 storedFundingRate,) = market.getFundingRates(_id, _ticker);
 
         // Minus sign is needed as funding flows in the opposite direction of the skew
         // Take an average of the current / prev funding rates
         int256 avgFundingRate = -storedFundingRate.avg(fundingRate);
-
-        console2.log("avgFundingRate", avgFundingRate);
 
         unrecordedFunding = avgFundingRate.mulDivSigned(_getProportionalFundingElapsed(_id, market, _ticker), sUNIT)
             .mulDivSigned(_indexPrice.toInt256(), sUNIT);
