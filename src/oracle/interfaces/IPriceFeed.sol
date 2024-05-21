@@ -11,6 +11,7 @@ interface IPriceFeed {
     }
 
     struct RequestData {
+        MarketId marketId;
         address requester;
         uint48 blockTimestamp;
         RequestType requestType;
@@ -63,9 +64,8 @@ interface IPriceFeed {
 
     struct Pnl {
         uint8 precision;
-        address market;
         uint48 timestamp;
-        int40 cumulativePnl;
+        int128 cumulativePnl;
     }
 
     // Custom error type
@@ -92,6 +92,8 @@ interface IPriceFeed {
 
     function sequencerUptimeFeed() external view returns (address);
     function initialize(
+        string calldata _priceUpdateSource,
+        string calldata _cumulativePnlSource,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
@@ -101,7 +103,7 @@ interface IPriceFeed {
         uint48 _timeToExpiration
     ) external;
     function getPrices(string memory _ticker, uint48 _timestamp) external view returns (Price memory signedPrices);
-    function getCumulativePnl(address _market, uint48 _timestamp) external view returns (Pnl memory pnl);
+    function getCumulativePnl(MarketId marketId, uint48 _timestamp) external view returns (Pnl memory pnl);
     function updateBillingParameters(
         uint64 _subId,
         bytes32 _donId,
@@ -117,10 +119,7 @@ interface IPriceFeed {
         external
         payable
         returns (bytes32 requestId);
-    function requestCumulativeMarketPnl(MarketId _id, address _requester)
-        external
-        payable
-        returns (bytes32 requestId);
+    function requestCumulativeMarketPnl(MarketId _id, address _requester) external payable returns (bytes32);
     function getSecondaryStrategy(string memory _ticker) external view returns (SecondaryStrategy memory);
     function priceUpdateRequested(bytes32 _requestId) external view returns (bool);
     function getRequestData(bytes32 _requestId) external view returns (RequestData memory);

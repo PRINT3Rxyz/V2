@@ -58,43 +58,43 @@ library MarketUtils {
     /**
      * =========================================== Constructor Functions ===========================================
      */
-    function constructDepositParams(MarketId _id, IPriceFeed priceFeed, IMarket market, bytes32 _depositKey)
+    function constructDepositParams(MarketId marketId, IPriceFeed priceFeed, IMarket market, bytes32 _depositKey)
         external
         view
         returns (IVault.ExecuteDeposit memory params)
     {
         params.market = market;
-        params.deposit = market.getRequest(_id, _depositKey);
+        params.deposit = market.getRequest(marketId, _depositKey);
         params.key = _depositKey;
 
         (params.longPrices, params.shortPrices) = Oracle.getVaultPrices(priceFeed, params.deposit.requestTimestamp);
 
-        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(_id, market, true);
-        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(_id, market, false);
+        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, true);
+        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, false);
 
-        params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, address(market), params.deposit.requestTimestamp);
+        params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, marketId, params.deposit.requestTimestamp);
 
-        params.vault = market.getVault(_id);
+        params.vault = market.getVault(marketId);
     }
 
-    function constructWithdrawalParams(MarketId _id, IPriceFeed priceFeed, IMarket market, bytes32 _withdrawalKey)
+    function constructWithdrawalParams(MarketId marketId, IPriceFeed priceFeed, IMarket market, bytes32 _withdrawalKey)
         external
         view
         returns (IVault.ExecuteWithdrawal memory params)
     {
         params.market = market;
-        params.withdrawal = market.getRequest(_id, _withdrawalKey);
+        params.withdrawal = market.getRequest(marketId, _withdrawalKey);
         params.key = _withdrawalKey;
         params.shouldUnwrap = params.withdrawal.reverseWrap;
 
         (params.longPrices, params.shortPrices) = Oracle.getVaultPrices(priceFeed, params.withdrawal.requestTimestamp);
 
-        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(_id, market, true);
-        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(_id, market, false);
+        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, true);
+        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, false);
 
-        params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, address(market), params.withdrawal.requestTimestamp);
+        params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, marketId, params.withdrawal.requestTimestamp);
 
-        params.vault = market.getVault(_id);
+        params.vault = market.getVault(marketId);
     }
 
     /**
@@ -573,41 +573,6 @@ library MarketUtils {
             // if price delta > average entry price, it's impossible, as price can't be 0.
             if (priceDelta > averageEntryPrice) revert MarketUtils_AdlCantOccur();
             adlPrice = averageEntryPrice - priceDelta;
-        }
-    }
-
-    /**
-     * =========================================== External-Only Functions ===========================================
-     */
-
-    /// @dev For external queries - very gas inefficient.
-    function calculateCumulativeMarketPnl(
-        MarketId _id,
-        IMarket market,
-        IPriceFeed priceFeed,
-        uint48 _requestTimestamp,
-        bool _isLong,
-        bool _maximise
-    ) external view returns (int256 cumulativePnl) {
-        string[] memory tickers = market.getTickers(_id);
-
-        // Max 100 Loops, so uint8 sufficient
-        for (uint8 i = 0; i < tickers.length;) {
-            string memory ticker = tickers[i];
-
-            uint256 indexPrice = _maximise
-                ? Oracle.getMaxPrice(priceFeed, ticker, _requestTimestamp)
-                : Oracle.getMinPrice(priceFeed, ticker, _requestTimestamp);
-
-            uint256 indexBaseUnit = Oracle.getBaseUnit(priceFeed, ticker);
-
-            int256 pnl = getMarketPnl(_id, market, ticker, indexPrice, indexBaseUnit, _isLong);
-
-            cumulativePnl += pnl;
-
-            unchecked {
-                ++i;
-            }
         }
     }
 

@@ -14,17 +14,19 @@ import {IWETH} from "../../src/tokens/interfaces/IWETH.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {Oracle} from "../../src/oracle/Oracle.sol";
 import {LibString} from "../../src/libraries/LibString.sol";
-import {MarketId} from "src/types/MarketId.sol";
+import {MarketId, MarketIdLibrary} from "src/types/MarketId.sol";
 
 contract MockPriceFeed is FunctionsClient, IPriceFeed {
     using FunctionsRequest for FunctionsRequest.Request;
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
     using EnumerableMap for EnumerableMap.PriceMap;
     using LibString for bytes15;
+    using MarketIdLibrary for bytes32;
 
     uint256 public constant PRICE_DECIMALS = 30;
     // Length of 1 Bytes32 Word
     uint8 private constant WORD = 32;
+    uint8 private constant PNL_BYTES = 23;
     uint8 private constant MIN_EXPIRATION_TIME = 2 minutes;
     uint40 private constant MSB1 = 0x8000000000;
     uint64 private constant LINK_BASE_UNIT = 1e18;
@@ -51,14 +53,8 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
 
     // JavaScript source code
     // Hard code the javascript source code here for each request's execution function
-    /**
-     * Price Sources:
-     * - Aggregate CEXs
-     * - CryptoCompare
-     * - CMC / CoinGecko
-     */
-    string priceUpdateSource = "";
-    string cumulativePnlSource = "";
+    string priceUpdateSource;
+    string cumulativePnlSource;
 
     //Callback gas limit
     uint256 public gasOverhead;
@@ -69,7 +65,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
 
     // State variable to store the returned character information
     mapping(string ticker => mapping(uint48 blockTimestamp => Price priceResponse)) private prices;
-    mapping(address market => mapping(uint48 blockTimestamp => Pnl cumulativePnl)) public cumulativePnl;
+    mapping(MarketId marketId => mapping(uint48 blockTimestamp => Pnl cumulativePnl)) public cumulativePnl;
     // store who requested the data and what type of data was requested
     // only the keeper who requested can fill the order for non market orders
     // all pricing should be cleared once the request is filled
@@ -113,6 +109,8 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     }
 
     function initialize(
+        string calldata _priceUpdateSource,
+        string calldata _cumulativePnlSource,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
@@ -122,6 +120,8 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         uint48 _timeToExpiration
     ) external {
         if (isInitialized) revert PriceFeed_AlreadyInitialized();
+        priceUpdateSource = _priceUpdateSource;
+        cumulativePnlSource = _cumulativePnlSource;
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
@@ -204,6 +204,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         bytes32 requestId = keccak256(abi.encode("PRICE REQUEST"));
 
         RequestData memory data = RequestData({
+            marketId: bytes32(0).toId(),
             requester: _requester,
             blockTimestamp: _blockTimestamp(),
             requestType: RequestType.PRICE_UPDATE,
@@ -218,16 +219,23 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     }
 
     /// @dev - for this, we need to copy / call the function MarketUtils.calculateCumulativeMarketPnl but offchain
-    function requestCumulativeMarketPnl(MarketId, address _requester) external payable returns (bytes32 requestKey) {
+    function requestCumulativeMarketPnl(MarketId _id, address _requester)
+        external
+        payable
+        returns (bytes32 requestKey)
+    {
         // Create a  request id
         requestKey = keccak256(abi.encode("PRICE REQUEST"));
         bytes32 requestId = keccak256(abi.encode("PNL REQUEST"));
 
+        string[] memory args;
+
         RequestData memory data = RequestData({
+            marketId: _id,
             requester: _requester,
             blockTimestamp: _blockTimestamp(),
             requestType: RequestType.CUMULATIVE_PNL,
-            args: new string[](0)
+            args: args
         });
 
         // Add the Request to Storage
@@ -266,7 +274,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         if (data.requestType == RequestType.PRICE_UPDATE) {
             _decodeAndStorePrices(response);
         } else if (data.requestType == RequestType.CUMULATIVE_PNL) {
-            _decodeAndStorePnl(response);
+            _decodeAndStorePnl(response, data.marketId);
         } else {
             revert PriceFeed_InvalidRequestType();
         }
@@ -356,24 +364,20 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         }
     }
 
-    function _decodeAndStorePnl(bytes memory _encodedPnl) private {
-        // Fulfill the cumulative PNL request
+    function _decodeAndStorePnl(bytes memory _encodedPnl, MarketId marketId) private {
         uint256 len = _encodedPnl.length;
-        if (len != WORD) revert PriceFeed_InvalidResponseLength();
+        if (len != PNL_BYTES) revert PriceFeed_InvalidResponseLength();
 
         Pnl memory pnl;
 
-        bytes32 responseBytes = bytes32(_encodedPnl);
-        // shift the response 1 byte left, then truncate the first byte
+        bytes23 responseBytes = bytes23(_encodedPnl);
+        // Truncate the first byte
         pnl.precision = uint8(bytes1(responseBytes));
-        // shift the response another byte left, then truncate the first 20 bytes
-        pnl.market = address(bytes20(responseBytes << 8));
-        // shift the response another 20 bytes left, then truncate the first 6 bytes
-        pnl.timestamp = uint48(bytes6(responseBytes << 168));
-        // shift the response another 6 bytes left, then truncate the first 5 bytes
-        // Extract the cumulativePnl as uint40 as we can't directly extract
-        // an int40 from bytes.
-        uint40 pnlValue = uint40(bytes5(responseBytes << 216));
+        // shift the response 1 byte left, then truncate the first 6 bytes
+        pnl.timestamp = uint48(bytes6(responseBytes << 8));
+        // Extract the cumulativePnl as uint128 as we can't directly extract
+        // an int128 from bytes.
+        uint128 pnlValue = uint128(bytes16(responseBytes << 56));
 
         // Check if the most significant bit is 1 or 0
         // 0x800... in binary is 1000000... The msb is 1, and all of the rest are 0
@@ -382,14 +386,13 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         if (pnlValue & MSB1 != 0) {
             // If msb is 1, this indicates the number is negative.
             // In this case, we flip all of the bits and add 1 to convert from +ve to -ve
-            pnl.cumulativePnl = -int40(~pnlValue + 1);
+            pnl.cumulativePnl = -int128(~pnlValue + 1);
         } else {
             // If msb is 0, the value is positive, so we convert and return as is.
-            pnl.cumulativePnl = int40(pnlValue);
+            pnl.cumulativePnl = int128(pnlValue);
         }
 
-        // Store the cumulative PNL in the mapping
-        cumulativePnl[pnl.market][pnl.timestamp] = pnl;
+        cumulativePnl[marketId][pnl.timestamp] = pnl;
     }
 
     function _blockTimestamp() internal view returns (uint48) {
@@ -425,17 +428,16 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     }
 
     // Used to pack cumulative PNL into a single bytes32 word for fulfillment
-    function encodePnl(uint8 _precision, address _market, uint48 _timestamp, int40 _cumulativePnl)
+    function encodePnl(uint8 _precision, uint48 _timestamp, int128 _cumulativePnl)
         external
         pure
         returns (bytes memory)
     {
         Pnl memory pnl;
         pnl.precision = _precision;
-        pnl.market = _market;
         pnl.timestamp = _timestamp;
         pnl.cumulativePnl = _cumulativePnl;
-        return abi.encodePacked(pnl.precision, pnl.market, pnl.timestamp, pnl.cumulativePnl);
+        return abi.encodePacked(pnl.precision, pnl.timestamp, pnl.cumulativePnl);
     }
 
     function getPrices(string memory _ticker, uint48 _timestamp) external view returns (Price memory signedPrices) {
@@ -444,9 +446,9 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         if (signedPrices.timestamp + MIN_EXPIRATION_TIME < block.timestamp) revert PriceFeed_PriceExpired();
     }
 
-    function getCumulativePnl(address _market, uint48 _timestamp) external view returns (Pnl memory pnl) {
-        pnl = cumulativePnl[_market][_timestamp];
-        if (pnl.market == address(0)) revert PriceFeed_PnlNotSigned();
+    function getCumulativePnl(MarketId marketId, uint48 _timestamp) external view returns (Pnl memory pnl) {
+        pnl = cumulativePnl[marketId][_timestamp];
+        if (pnl.timestamp == 0) revert PriceFeed_PnlNotSigned();
     }
 
     function getSecondaryStrategy(string memory _ticker) external view returns (SecondaryStrategy memory) {
@@ -489,8 +491,8 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     }
 
     // Used to Manually Set Pnl for Testing
-    function updatePnl(bytes memory _response) external {
-        _decodeAndStorePnl(_response);
+    function updatePnl(bytes memory _response, MarketId marketId) external {
+        _decodeAndStorePnl(_response, marketId);
     }
 
     // Used to Manually Delete a Request

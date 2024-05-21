@@ -29,7 +29,7 @@ console.log("Cmc Request: ", cmcRequest);
 const cmcResponse = await cmcRequest;
 
 if (cmcResponse.status !== 200) {
-  throw new Error('GET Request to CMC API Failed');
+  throw new Error("GET Request to CMC API Failed");
 }
 
 const data = cmcResponse.data.data;
@@ -123,4 +123,4 @@ const result = encodedPrices.reduce((acc, bytes) => {
   return newBuffer;
 }, new Uint8Array());
 
-return Buffer.from(result, 'hex');
+return Buffer.from(result, "hex");

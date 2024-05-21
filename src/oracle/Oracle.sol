@@ -31,6 +31,7 @@ library Oracle {
     using Casting for int32;
     using Casting for int64;
     using LibString for uint256;
+    using LibString for bytes32;
 
     error Oracle_SequencerDown();
     error Oracle_InvalidAmmDecimals();
@@ -202,10 +203,10 @@ library Oracle {
         }
     }
 
-    function constructMultiPriceArgs(MarketId _id, IMarket market) internal view returns (string[] memory args) {
+    function constructMultiPriceArgs(MarketId marketId, IMarket market) internal view returns (string[] memory args) {
         string memory timestamp = block.timestamp.toString();
 
-        string[] memory tickers = market.getTickers(_id);
+        string[] memory tickers = market.getTickers(marketId);
 
         uint256 len = tickers.length;
 
@@ -225,25 +226,18 @@ library Oracle {
     }
 
     /// @dev - Prepend the timestamp to the arguments before sending to the DON
-    /// Use of loop not desirable, but the maximum possible loops is ~ 102
-    function constructPnlArguments(MarketId _id, IMarket market) internal view returns (string[] memory args) {
-        string[] memory tickers = market.getTickers(_id);
+    function constructPnlArguments(MarketId marketId) internal view returns (string[] memory args) {
+        args = new string[](2);
 
-        string memory timestamp = block.timestamp.toString();
+        args[0] = block.timestamp.toString();
 
-        uint256 len = tickers.length;
+        bytes32 unwrappedMarketId;
 
-        args = new string[](tickers.length + 1);
-
-        args[0] = timestamp;
-
-        for (uint8 i = 0; i < len;) {
-            args[i + 1] = tickers[i];
-
-            unchecked {
-                ++i;
-            }
+        assembly {
+            unwrappedMarketId := marketId
         }
+
+        args[1] = unwrappedMarketId.fromSmallString();
     }
 
     /**
@@ -327,12 +321,12 @@ library Oracle {
     /**
      * =========================================== Pnl ===========================================
      */
-    function getCumulativePnl(IPriceFeed priceFeed, address _market, uint48 _blockTimestamp)
+    function getCumulativePnl(IPriceFeed priceFeed, MarketId marketId, uint48 _blockTimestamp)
         internal
         view
         returns (int256 cumulativePnl)
     {
-        IPriceFeed.Pnl memory pnl = priceFeed.getCumulativePnl(_market, _blockTimestamp);
+        IPriceFeed.Pnl memory pnl = priceFeed.getCumulativePnl(marketId, _blockTimestamp);
 
         uint256 multiplier = 10 ** (PRICE_DECIMALS - pnl.precision);
 

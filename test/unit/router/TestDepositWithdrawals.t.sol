@@ -121,8 +121,8 @@ contract TestDepositWithdrawals is Test {
         bytes memory encodedPrices = priceFeed.encodePrices(tickers, precisions, variances, timestamps, meds);
         priceFeed.updatePrices(encodedPrices);
         marketId = marketFactory.executeMarketRequest(marketFactory.getRequestKeys()[0]);
-        bytes memory encodedPnl = priceFeed.encodePnl(0, address(market), uint48(block.timestamp), 0);
-        priceFeed.updatePnl(encodedPnl);
+        bytes memory encodedPnl = priceFeed.encodePnl(0, uint48(block.timestamp), 0);
+        priceFeed.updatePnl(encodedPnl, marketId);
         vm.stopPrank();
         vault = market.getVault(marketId);
         tradeStorage = ITradeStorage(market.tradeStorage());

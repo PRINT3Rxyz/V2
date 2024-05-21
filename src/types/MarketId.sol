@@ -11,4 +11,10 @@ library MarketIdLibrary {
             marketId := keccak256(_input, mul(32, 9))
         }
     }
+
+    function toId(bytes32 _marketId) internal pure returns (MarketId marketId) {
+        assembly {
+            marketId := _marketId
+        }
+    }
 }

@@ -17,18 +17,20 @@ import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
 import {Oracle} from "./Oracle.sol";
 import {LibString} from "../../src/libraries/LibString.sol";
-import {MarketId} from "../types/MarketId.sol";
+import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
 
 contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed {
     using FunctionsRequest for FunctionsRequest.Request;
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
     using EnumerableMap for EnumerableMap.PriceMap;
     using LibString for bytes15;
+    using MarketIdLibrary for bytes32;
 
     uint256 public constant PRICE_DECIMALS = 30;
 
     uint8 private constant WORD = 32;
-    uint40 private constant MSB1 = 0x8000000000;
+    uint8 private constant PNL_BYTES = 23;
+    uint128 private constant MSB1 = 0x80000000000000000000000000000000;
     uint64 private constant LINK_BASE_UNIT = 1e18;
     uint16 private constant MAX_DATA_LENGTH = 3296;
     uint8 private constant MAX_ARGS_LENGTH = 4;
@@ -53,15 +55,9 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     uint64 settlementFee;
 
     // JavaScript source code
-    // Hard code the javascript source code here for each request's execution function
-    /**
-     * Price Sources:
-     * - Aggregate CEXs
-     * - CryptoCompare
-     * - CMC / CoinGecko
-     */
-    string priceUpdateSource = "";
-    string cumulativePnlSource = "";
+    // Hard coded javascript source code here for each request's execution function
+    string priceUpdateSource;
+    string cumulativePnlSource;
 
     //Callback gas limit
     uint256 public gasOverhead;
@@ -71,7 +67,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     uint48 public timeToExpiration;
 
     mapping(string ticker => mapping(uint48 blockTimestamp => Price priceResponse)) private prices;
-    mapping(address market => mapping(uint48 blockTimestamp => Pnl cumulativePnl)) public cumulativePnl;
+    mapping(MarketId marketId => mapping(uint48 blockTimestamp => Pnl cumulativePnl)) public cumulativePnl;
 
     mapping(string ticker => SecondaryStrategy) private strategies;
     mapping(string ticker => uint8) public tokenDecimals;
@@ -111,6 +107,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     }
 
     function initialize(
+        string calldata _priceUpdateSource,
+        string calldata _cumulativePnlSource,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
@@ -120,6 +118,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         uint48 _timeToExpiration
     ) external onlyOwner {
         if (isInitialized) revert PriceFeed_AlreadyInitialized();
+        priceUpdateSource = _priceUpdateSource;
+        cumulativePnlSource = _cumulativePnlSource;
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
@@ -221,6 +221,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         bytes32 requestId = _requestFulfillment(args, true);
 
         RequestData memory data = RequestData({
+            marketId: bytes32(0).toId(),
             requester: _requester,
             blockTimestamp: blockTimestamp,
             requestType: RequestType.PRICE_UPDATE,
@@ -244,9 +245,11 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     {
         if (!marketFactory.isMarket(_id)) revert PriceFeed_InvalidMarket();
 
+        Oracle.isSequencerUp(this);
+
         uint48 blockTimestamp = _blockTimestamp();
 
-        string[] memory args = Oracle.constructPnlArguments(_id, market);
+        string[] memory args = Oracle.constructPnlArguments(_id);
 
         bytes32 requestKey = _generateKey(abi.encode(args, _requester, blockTimestamp));
 
@@ -255,6 +258,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         bytes32 requestId = _requestFulfillment(args, false);
 
         RequestData memory data = RequestData({
+            marketId: _id,
             requester: _requester,
             blockTimestamp: blockTimestamp,
             requestType: RequestType.CUMULATIVE_PNL,
@@ -297,7 +301,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         if (data.requestType == RequestType.PRICE_UPDATE) {
             _decodeAndStorePrices(response);
         } else if (data.requestType == RequestType.CUMULATIVE_PNL) {
-            _decodeAndStorePnl(response);
+            _decodeAndStorePnl(response, data.marketId);
         } else {
             revert PriceFeed_InvalidRequestType();
         }
@@ -423,23 +427,20 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         }
     }
 
-    function _decodeAndStorePnl(bytes memory _encodedPnl) private {
+    function _decodeAndStorePnl(bytes memory _encodedPnl, MarketId marketId) private {
         uint256 len = _encodedPnl.length;
-        if (len != WORD) revert PriceFeed_InvalidResponseLength();
+        if (len != PNL_BYTES) revert PriceFeed_InvalidResponseLength();
 
         Pnl memory pnl;
 
-        bytes32 responseBytes = bytes32(_encodedPnl);
-        // shift the response 1 byte left, then truncate the first byte
+        bytes23 responseBytes = bytes23(_encodedPnl);
+        // Truncate the first byte
         pnl.precision = uint8(bytes1(responseBytes));
-        // shift the response another byte left, then truncate the first 20 bytes
-        pnl.market = address(bytes20(responseBytes << 8));
-        // shift the response another 20 bytes left, then truncate the first 6 bytes
-        pnl.timestamp = uint48(bytes6(responseBytes << 168));
-        // shift the response another 6 bytes left, then truncate the first 5 bytes
-        // Extract the cumulativePnl as uint40 as we can't directly extract
-        // an int40 from bytes.
-        uint40 pnlValue = uint40(bytes5(responseBytes << 216));
+        // shift the response 1 byte left, then truncate the first 6 bytes
+        pnl.timestamp = uint48(bytes6(responseBytes << 8));
+        // Extract the cumulativePnl as uint128 as we can't directly extract
+        // an int128 from bytes.
+        uint128 pnlValue = uint128(bytes16(responseBytes << 56));
 
         // Check if the most significant bit is 1 or 0
         // 0x800... in binary is 1000000... The msb is 1, and all of the rest are 0
@@ -448,13 +449,13 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         if (pnlValue & MSB1 != 0) {
             // If msb is 1, this indicates the number is negative.
             // In this case, we flip all of the bits and add 1 to convert from +ve to -ve
-            pnl.cumulativePnl = -int40(~pnlValue + 1);
+            pnl.cumulativePnl = -int128(~pnlValue + 1);
         } else {
             // If msb is 0, the value is positive, so we convert and return as is.
-            pnl.cumulativePnl = int40(pnlValue);
+            pnl.cumulativePnl = int128(pnlValue);
         }
 
-        cumulativePnl[pnl.market][pnl.timestamp] = pnl;
+        cumulativePnl[marketId][pnl.timestamp] = pnl;
     }
 
     function _blockTimestamp() internal view returns (uint48) {
@@ -494,17 +495,16 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         return abi.encodePacked(encodedPrices);
     }
 
-    function encodePnl(uint8 _precision, address _market, uint48 _timestamp, int40 _cumulativePnl)
+    function encodePnl(uint8 _precision, uint48 _timestamp, int128 _cumulativePnl)
         external
         pure
         returns (bytes memory)
     {
         Pnl memory pnl;
         pnl.precision = _precision;
-        pnl.market = _market;
         pnl.timestamp = _timestamp;
         pnl.cumulativePnl = _cumulativePnl;
-        return abi.encodePacked(pnl.precision, pnl.market, pnl.timestamp, pnl.cumulativePnl);
+        return abi.encodePacked(pnl.precision, pnl.timestamp, pnl.cumulativePnl);
     }
 
     function getPrices(string memory _ticker, uint48 _timestamp) external view returns (Price memory signedPrices) {
@@ -513,9 +513,9 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         if (signedPrices.timestamp + timeToExpiration < block.timestamp) revert PriceFeed_PriceExpired();
     }
 
-    function getCumulativePnl(address _market, uint48 _timestamp) external view returns (Pnl memory pnl) {
-        pnl = cumulativePnl[_market][_timestamp];
-        if (pnl.market == address(0)) revert PriceFeed_PnlNotSigned();
+    function getCumulativePnl(MarketId marketId, uint48 _timestamp) external view returns (Pnl memory pnl) {
+        pnl = cumulativePnl[marketId][_timestamp];
+        if (pnl.timestamp == 0) revert PriceFeed_PnlNotSigned();
     }
 
     function getSecondaryStrategy(string memory _ticker) external view returns (SecondaryStrategy memory) {

@@ -2,20 +2,19 @@ const fs = require("fs");
 const path = require("path");
 const {
   SubscriptionManager,
-  SecretsManager,
   simulateScript,
   ResponseListener,
   ReturnType,
   decodeResult,
   FulfillmentCode,
 } = require("@chainlink/functions-toolkit");
-const functionsConsumerAbi = require("./abis/functionsClient.json");
+const functionsConsumerAbi = require("../../abi/functionsClient.json");
 const ethers = require("ethers");
 require("@chainlink/env-enc").config();
 
-// Test Consumer
-const consumerAddress = "0x1940588090784C45ba9BeD8ce4Ab4A6FFCAa20e1";
-const subscriptionId = 2764;
+const consumerAddress = "0x1940588090784C45ba9BeD8ce4Ab4A6FFCAa20e1"; 
+const subscriptionId = 2764; 
+
 
 const makeRequestSepolia = async () => {
   // hardcoded for Ethereum Sepolia
@@ -24,23 +23,12 @@ const makeRequestSepolia = async () => {
   const donId = "fun-ethereum-sepolia-1";
   const explorerUrl = "https://sepolia.etherscan.io";
 
-  const gatewayUrls = [
-    "https://01.functions-gateway.testnet.chain.link/",
-    "https://02.functions-gateway.testnet.chain.link/",
-  ];
-
   // Initialize functions settings
   const source = fs
-    .readFileSync(path.resolve(__dirname, "priceSource.js"))
+    .readFileSync(path.resolve(__dirname, "pnlSource.js"))
     .toString();
 
-  // Get the Timestamp in Seconds
-  const timestamp = Math.floor(Date.now() / 1000);
-
-  const args = [timestamp.toString(), "BTC", "ETH", "USDC"];
-  const secrets = { apiKey: process.env.COINMARKETCAP_API_KEY };
-  const slotIdNumber = 0; // slot ID where to upload the secrets
-  const expirationTimeMinutes = 15; // expiration time in minutes of the secrets
+  const args = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
   const gasLimit = 300000;
 
   // Initialize ethers signer and provider to interact with the contracts onchain
@@ -68,7 +56,7 @@ const makeRequestSepolia = async () => {
     source: source,
     args: args,
     bytesArgs: [], // bytesArgs - arguments can be encoded off-chain to bytes.
-    secrets: secrets,
+    secrets: {}, // no secrets in this example
   });
 
   console.log("Simulation result", response);
@@ -76,7 +64,7 @@ const makeRequestSepolia = async () => {
   if (errorString) {
     console.log(`❌ Error during simulation: `, errorString);
   } else {
-    const returnType = ReturnType.string;
+    const returnType = ReturnType.uint256;
     const responseBytesHexstring = response.responseBytesHexstring;
     if (ethers.utils.arrayify(responseBytesHexstring).length > 0) {
       const decodedResponse = decodeResult(
@@ -105,7 +93,7 @@ const makeRequestSepolia = async () => {
     await subscriptionManager.estimateFunctionsRequestCost({
       donId: donId, // ID of the DON to which the Functions request will be sent
       subscriptionId: subscriptionId, // Subscription ID
-      callbackGasLimit: gasLimit, // Total gas used by the consumer contracts callback
+      callbackGasLimit: gasLimit, // Total gas used by the consumer contract's callback
       gasPriceWei: BigInt(gasPriceWei), // Gas price in gWei
     });
 
@@ -119,38 +107,6 @@ const makeRequestSepolia = async () => {
 
   console.log("\nMake request...");
 
-  // First encrypt secrets and upload the encrypted secrets to the DON
-  const secretsManager = new SecretsManager({
-    signer: signer,
-    functionsRouterAddress: routerAddress,
-    donId: donId,
-  });
-  await secretsManager.initialize();
-
-  // Encrypt secrets and upload to DON
-  const encryptedSecretsObj = await secretsManager.encryptSecrets(secrets);
-
-  console.log(
-    `Upload encrypted secret to gateways ${gatewayUrls}. slotId ${slotIdNumber}. Expiration in minutes: ${expirationTimeMinutes}`
-  );
-  // Upload secrets
-  const uploadResult = await secretsManager.uploadEncryptedSecretsToDON({
-    encryptedSecretsHexstring: encryptedSecretsObj.encryptedSecrets,
-    gatewayUrls: gatewayUrls,
-    slotId: slotIdNumber,
-    minutesUntilExpiration: expirationTimeMinutes,
-  });
-
-  if (!uploadResult.success)
-    throw new Error(`Encrypted secrets not uploaded to ${gatewayUrls}`);
-
-  console.log(
-    `\n✅ Secrets uploaded properly to gateways ${gatewayUrls}! Gateways response: `,
-    uploadResult
-  );
-
-  const donHostedSecretsVersion = parseInt(uploadResult.version); // fetch the reference of the encrypted secrets
-
   const functionsConsumer = new ethers.Contract(
     consumerAddress,
     functionsConsumerAbi,
@@ -161,8 +117,8 @@ const makeRequestSepolia = async () => {
   const transaction = await functionsConsumer.sendRequest(
     source, // source
     "0x", // user hosted secrets - encryptedSecretsUrls - empty in this example
-    slotIdNumber, // slot ID of the encrypted secrets
-    donHostedSecretsVersion, // version of the encrypted secrets
+    0, // don hosted secrets - slot ID - empty in this example
+    0, // don hosted secrets - version - empty in this example
     args,
     [], // bytesArgs - arguments can be encoded off-chain to bytes.
     subscriptionId,
@@ -235,10 +191,10 @@ const makeRequestSepolia = async () => {
         if (ethers.utils.arrayify(responseBytesHexstring).length > 0) {
           const decodedResponse = decodeResult(
             response.responseBytesHexstring,
-            ReturnType.string
+            ReturnType.uint256
           );
           console.log(
-            `\n✅ Decoded response to ${ReturnType.string}: `,
+            `\n✅ Decoded response to ${ReturnType.uint256}: `,
             decodedResponse
           );
         }
