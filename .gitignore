@@ -3,6 +3,8 @@ cache/
 out/
 lib/
 .github/
+node_modules/
+broadcast/
 
 # Ignores development broadcast logs
 !/broadcast
@@ -14,6 +16,7 @@ docs/
 
 # Dotenv file
 .env
+.env.enc
 
 notes.md
 /test/Tests.md
