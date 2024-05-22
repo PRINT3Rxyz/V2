@@ -25,23 +25,26 @@ contract HelperConfig is IHelperConfig, Script {
         }
     }
 
-    function getBaseSepoliaConfig() public returns (NetworkConfig memory anvilConfig) {
+    function getBaseSepoliaConfig() public returns (NetworkConfig memory baseSepoliaConfig) {
         MockUSDC mockUsdc = MockUSDC(0x9881f8b307CC3383500b432a8Ce9597fAfc73A77);
         WETH weth = WETH(0xD8eca5111c93EEf563FAB704F2C6A8DD7A12c77D);
         MockToken link = new MockToken();
 
-        anvilConfig.weth = address(weth);
-        anvilConfig.usdc = address(mockUsdc);
-        anvilConfig.link = address(link);
-        anvilConfig.uniV3SwapRouter = address(0);
-        anvilConfig.uniV3Factory = address(0);
-        anvilConfig.subId = 0;
-        anvilConfig.donId = keccak256(abi.encode("DON"));
-        anvilConfig.chainlinkRouter = address(0);
-        anvilConfig.mockFeed = true;
-        anvilConfig.sequencerUptimeFeed = address(0);
+        baseSepoliaConfig.weth = address(weth);
+        baseSepoliaConfig.usdc = address(mockUsdc);
+        baseSepoliaConfig.link = address(link);
+        baseSepoliaConfig.uniV3SwapRouter = address(0);
+        baseSepoliaConfig.uniV3Factory = address(0);
+        baseSepoliaConfig.uniV2Factory = address(0);
+        baseSepoliaConfig.chainlinkFeedRegistory = address(0);
+        baseSepoliaConfig.pyth = address(0);
+        baseSepoliaConfig.subId = 0;
+        baseSepoliaConfig.donId = keccak256(abi.encode("DON"));
+        baseSepoliaConfig.chainlinkRouter = address(0);
+        baseSepoliaConfig.mockFeed = true;
+        baseSepoliaConfig.sequencerUptimeFeed = address(0);
 
-        activeNetworkConfig = anvilConfig;
+        activeNetworkConfig = baseSepoliaConfig;
     }
 
     // function getSepoliaConfig() public returns (NetworkConfig memory sepoliaConfig) {
@@ -81,6 +84,9 @@ contract HelperConfig is IHelperConfig, Script {
         anvilConfig.link = address(link);
         anvilConfig.uniV3SwapRouter = address(0);
         anvilConfig.uniV3Factory = address(0);
+        anvilConfig.uniV2Factory = address(0);
+        anvilConfig.chainlinkFeedRegistory = address(0);
+        anvilConfig.pyth = address(0);
         anvilConfig.subId = 0;
         anvilConfig.donId = keccak256(abi.encode("DON"));
         anvilConfig.chainlinkRouter = address(0);

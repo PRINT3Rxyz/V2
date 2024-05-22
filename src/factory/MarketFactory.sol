@@ -8,6 +8,7 @@ import {IMarket} from "../markets/interfaces/IMarket.sol";
 import {FeedRegistryInterface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IUniswapV3Factory} from "../oracle/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV2Factory} from "../oracle/interfaces/IUniswapV2Factory.sol";
+import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {IVault} from "../markets/interfaces/IVault.sol";
 import {ITradeStorage} from "../positions/interfaces/ITradeStorage.sol";
 import {ITradeEngine} from "../positions/interfaces/ITradeEngine.sol";
@@ -48,6 +49,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     address router;
 
     FeedRegistryInterface private feedRegistry;
+    IPyth private pyth;
     IUniswapV2Factory private uniV2Factory;
     IUniswapV3Factory private uniV3Factory;
 
@@ -77,9 +79,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     uint256 public marketCreationFee;
     uint256 public marketExecutionFee;
     uint256 public priceSupportFee;
-
-    // Pyth Feed Id Whitelist
-    bytes32 public pythMerkleRoot;
 
     // Stablecoin Address Whitelist for Uniswap V2 and V3 Pairs
     bytes32 public stablecoinMerkleRoot;
@@ -130,11 +129,14 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         rewardTracker = IGlobalRewardTracker(_rewardTracker);
     }
 
-    function setFeedValidators(address _chainlinkFeedRegistry, address _uniV2Factory, address _uniV3Factory)
-        external
-        onlyOwner
-    {
+    function setFeedValidators(
+        address _chainlinkFeedRegistry,
+        address _pyth,
+        address _uniV2Factory,
+        address _uniV3Factory
+    ) external onlyOwner {
         feedRegistry = FeedRegistryInterface(_chainlinkFeedRegistry);
+        pyth = IPyth(_pyth);
         uniV2Factory = IUniswapV2Factory(_uniV2Factory);
         uniV3Factory = IUniswapV3Factory(_uniV3Factory);
     }
@@ -159,8 +161,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
     /// @dev - Merkle Trees used as whitelists for all valid Pyth Price Feed Ids and Stablecoin Addresses
     /// These are used for feed validation w.r.t secondary strategies
-    function updateMerkleRoots(bytes32 _pythMerkleRoot, bytes32 _stablecoinMerkleRoot) external onlyOwner {
-        pythMerkleRoot = _pythMerkleRoot;
+    function updateMerkleRoot(bytes32 _stablecoinMerkleRoot) external onlyOwner {
         stablecoinMerkleRoot = _stablecoinMerkleRoot;
     }
 
@@ -316,7 +317,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         if (_params.strategy.feedType == IPriceFeed.FeedType.CHAINLINK) {
             Oracle.isValidChainlinkFeed(feedRegistry, _params.strategy.feedAddress);
         } else if (_params.strategy.feedType == IPriceFeed.FeedType.PYTH) {
-            Oracle.isValidPythFeed(_params.strategy.merkleProof, pythMerkleRoot, _params.strategy.feedId);
+            Oracle.isValidPythFeed(pyth, _params.strategy.feedId);
         } else if (
             _params.strategy.feedType == IPriceFeed.FeedType.UNI_V30
                 || _params.strategy.feedType == IPriceFeed.FeedType.UNI_V31

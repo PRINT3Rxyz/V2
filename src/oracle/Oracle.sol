@@ -150,12 +150,10 @@ library Oracle {
         }
     }
 
-    function isValidPythFeed(bytes32[] calldata _merkleProof, bytes32 _merkleRoot, bytes32 _priceId) internal pure {
-        // Check if the Pyth feed is stored within the Merkle Tree as a whitelisted feed.
-        // No need to check for bytes32(0) as this case will revert with this check.
-        if (!MerkleProofLib.verify(_merkleProof, _merkleRoot, _priceId)) {
-            revert Oracle_InvalidSecondaryStrategy();
-        }
+    // Try to fetch a price from the Pyth contract and ensure that it returns a non-zero value.
+    function isValidPythFeed(IPyth pyth, bytes32 _priceId) internal view {
+        PythStructs.Price memory pythData = pyth.getPriceUnsafe(_priceId);
+        if (pythData.price == 0) revert Oracle_InvalidSecondaryStrategy();
     }
 
     function validateFeedType(IPriceFeed.FeedType _feedType) internal pure {

@@ -21,8 +21,8 @@ const testPriceSource = async (args) => {
 
   const cmcResponse = await cmcRequest;
 
-  if (cmcResponse.status !== 200) {
-    throw new Error('GET Request to CMC API Failed');
+  if (cmcResponse.error) {
+    throw new Error(`Request Failed with status ${cmcResponse.error}`);
   }
 
   const data = cmcResponse.data.data;

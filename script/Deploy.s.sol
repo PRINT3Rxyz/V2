@@ -218,6 +218,13 @@ contract Deploy is Script {
             0.005 ether
         );
 
+        contracts.marketFactory.setFeedValidators(
+            activeNetworkConfig.chainlinkFeedRegistory,
+            activeNetworkConfig.pyth,
+            activeNetworkConfig.uniV2Factory,
+            activeNetworkConfig.uniV3Factory
+        );
+
         contracts.marketFactory.setRewardTracker(address(contracts.rewardTracker));
 
         // @audit - dummy values

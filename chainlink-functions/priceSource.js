@@ -12,7 +12,7 @@ if (!secrets.apiKey) {
 }
 
 const cmcRequest = await Functions.makeHttpRequest({
-  url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical`,
+  url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
   headers: {
     "Content-Type": "application/json",
     "X-CMC_PRO_API_KEY": secrets.apiKey,

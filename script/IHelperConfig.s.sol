@@ -13,6 +13,9 @@ interface IHelperConfig {
         uint64 subId;
         bytes32 donId;
         address chainlinkRouter;
+        address chainlinkFeedRegistory;
+        address uniV2Factory;
+        address pyth;
         bool mockFeed;
         address sequencerUptimeFeed;
     }

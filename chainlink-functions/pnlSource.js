@@ -48,23 +48,20 @@ const getMedianPrice = async (ticker) => {
   const timeStart = timestamp - 1;
   const timeEnd = timestamp;
 
-  const cmcRequest = await fetch(
-    "https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical",
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CMC_PRO_API_KEY": secrets.apiKey,
-      },
-      params: {
-        symbol: ticker,
-        time_start: timeStart,
-        time_end: timeEnd,
-      },
-    }
-  );
+  const cmcRequest = await Functions.makeHttpRequest({
+    url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
+    headers: {
+      "Content-Type": "application/json",
+      "X-CMC_PRO_API_KEY": secrets.apiKey,
+    },
+    params: {
+      symbol: tickers,
+      time_start: timeStart,
+      time_end: timeEnd,
+    },
+  });
 
-  const cmcResponse = await cmcRequest.json();
+  const cmcResponse = await cmcRequest;
 
   if (cmcResponse.status !== 200) {
     throw new Error("GET Request to CMC API Failed");
@@ -157,4 +154,5 @@ const formatResult = (result) => {
 
 const result = await calculateCumulativePnl();
 const formattedResult = formatResult(result);
-console.log(formattedResult);
+
+return Buffer.from(formattedResult, 'hex');
