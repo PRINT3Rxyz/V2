@@ -20,6 +20,7 @@ const makeRequestSepolia = async () => {
   // hardcoded for Ethereum Sepolia
   const routerAddress = "0xb83E47C2bC239B3bf370bc41e1459A34b41238D0";
   const linkTokenAddress = "0x779877A7B0D9E8603169DdbD7836e478b4624789";
+  const marketId = "0x"
   const donId = "fun-ethereum-sepolia-1";
   const explorerUrl = "https://sepolia.etherscan.io";
 
@@ -28,7 +29,9 @@ const makeRequestSepolia = async () => {
     .readFileSync(path.resolve(__dirname, "pnlSource.js"))
     .toString();
 
-  const args = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+  const timestamp = Math.floor(Date.now() / 1000);
+  const args = [timestamp.toString(), marketId];
+
   const gasLimit = 300000;
 
   // Initialize ethers signer and provider to interact with the contracts onchain

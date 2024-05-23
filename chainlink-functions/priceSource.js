@@ -1,14 +1,40 @@
 const { Buffer } = await import("node:buffer");
 
-const timestampUnix = Number(args[0]);
-const timeStart = timestampUnix - 1;
-const timeEnd = timestampUnix;
+const timestamp = Number(args[0]);
+
 const tickers = args.slice(1).join(",");
 
 if (!secrets.apiKey) {
-  throw new Error(
-    "COINMARKETCAP_API_KEY environment variable not set for CoinMarketCap API. Get a free key from https://coinmarketcap.com/api/"
-  );
+  throw new Error("Missing COINMARKETCAP_API_KEY");
+}
+
+const currentTime = Math.floor(Date.now() / 1000);
+
+let cmcResponse;
+let isLatest;
+
+// If it's been < 5 minutes since request, fetch latest prices (lower latency)
+if (currentTime - timestamp < 300) {
+  const cmcRequest = await Functions.makeHttpRequest({
+    url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,
+    headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+    params: {
+      symbol: tickers,
+    },
+  });
+  cmcResponse = await cmcRequest;
+  isLatest = true;
+} else {
+  const cmcRequest = await Functions.makeHttpRequest({
+    url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
+    headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+    params: {
+      symbol: tickers,
+      time_end: timestamp,
+    },
+  });
+  cmcResponse = await cmcRequest;
+  isLatest = false;
 }
 
 const cmcRequest = await Functions.makeHttpRequest({
@@ -19,14 +45,9 @@ const cmcRequest = await Functions.makeHttpRequest({
   },
   params: {
     symbol: tickers,
-    time_start: timeStart,
-    time_end: timeEnd,
+    time_end: timestamp,
   },
 });
-
-console.log("Cmc Request: ", cmcRequest);
-
-const cmcResponse = await cmcRequest;
 
 if (cmcResponse.status !== 200) {
   throw new Error("GET Request to CMC API Failed");
@@ -34,93 +55,69 @@ if (cmcResponse.status !== 200) {
 
 const data = cmcResponse.data.data;
 
-// Function to aggregate quotes
-const aggregateQuotes = (quotes) => {
-  const validQuotes = quotes.filter((quote) => quote.quote && quote.quote.USD);
-  const totalQuotes = validQuotes.length;
-  if (totalQuotes === 0) {
-    return { open: 0, high: 0, low: 0, close: 0 };
+const encodePriceData = async (ticker, priceData, timestamp, isLatest) => {
+  const tickerBuffer = Buffer.alloc(15);
+  tickerBuffer.write(ticker);
+
+  const precisionBuffer = Buffer.alloc(1);
+  precisionBuffer.writeUInt8(2, 0);
+
+  const quotes = priceData.quote;
+
+  let low, med, high;
+
+  if (isLatest) {
+    low = med = high = Math.round(quotes.USD.price * 100);
+  } else {
+    [low, med, high] = getQuotes(quotes);
+    low = Math.round(low.USD.price * 100);
+    med = Math.round(med.USD.price * 100);
+    high = Math.round(high.USD.price * 100);
   }
 
-  const aggregated = validQuotes.reduce(
-    (acc, quote) => {
-      acc.open += quote.quote.USD.open;
-      acc.high += quote.quote.USD.high;
-      acc.low += quote.quote.USD.low;
-      acc.close += quote.quote.USD.close;
-      return acc;
-    },
-    { open: 0, high: 0, low: 0, close: 0 }
+  const variance = getVariance(low, high);
+
+  const varianceBuffer = Buffer.alloc(2);
+  varianceBuffer.writeUInt16LE(variance, 0);
+
+  const timestampBuffer = Buffer.from(
+    timestamp.toString(16).padStart(12, "0"),
+    "hex"
   );
 
-  return {
-    open: aggregated.open / totalQuotes,
-    high: aggregated.high / totalQuotes,
-    low: aggregated.low / totalQuotes,
-    close: aggregated.close / totalQuotes,
-  };
+  const priceBuffer = Buffer.from(med.toString(16).padStart(16, "0"), "hex");
+
+  return Buffer.concat([
+    tickerBuffer,
+    precisionBuffer,
+    varianceBuffer,
+    timestampBuffer,
+    priceBuffer,
+  ]);
 };
 
-const filteredData = Object.keys(data).reduce((acc, key) => {
-  const assets = data[key];
-  if (assets.length > 0) {
-    const highestMarketCapAsset = assets[0]; // Take the first asset
-    highestMarketCapAsset.aggregatedQuotes = aggregateQuotes(
-      highestMarketCapAsset.quotes
-    );
-    acc.push(highestMarketCapAsset);
-  }
-  return acc;
-}, []);
+const getQuotes = async (quotes) => {
+  const high = quotes[0];
+  const low = quotes[quotes.length - 1];
+  const med = quotes[Math.floor(quotes.length / 2)];
 
-const encodedPrices = filteredData.reduce((acc, tokenData) => {
-  const { symbol, aggregatedQuotes } = tokenData;
-  const { open, high, low, close } = aggregatedQuotes;
+  return [low, med, high];
+};
 
-  // Encoding ticker to exactly 15 bytes with padding
-  const tickerBuffer = Buffer.alloc(15);
-  tickerBuffer.write(symbol);
+const getVariance = (low, high) => {
+  return Math.round(((high - low) / low) * 10000);
+};
 
-  const ticker = new Uint8Array(tickerBuffer);
+const buffers = [];
 
-  const precision = new Uint8Array(1);
-  precision[0] = 2; // Assuming 2 decimal places
+for (let ticker of tickers.split(",")) {
+  const encodedPriceData = await encodePriceData(
+    ticker,
+    data[ticker][0],
+    timestamp,
+    isLatest
+  );
+  buffers.push(encodedPriceData);
+}
 
-  const varianceValue = Math.round(((high - low) / low) * 10000);
-  const variance = new Uint8Array(2);
-  new DataView(variance.buffer).setUint16(0, varianceValue);
-
-  // Correct timestamp conversion to 6-byte array
-  const timestampSeconds = BigInt(args[0]);
-  const timestampBuf = new Uint8Array(6);
-  for (let i = 0; i < 6; i++) {
-    timestampBuf[5 - i] = Number(
-      (timestampSeconds >> BigInt(i * 8)) & BigInt(0xff)
-    );
-  }
-
-  // Correct median price calculation
-  const medianPriceValue = BigInt(Math.round(((open + close) / 2) * 100)); // Ensure correct scaling
-  const medianPrice = new Uint8Array(8);
-  new DataView(medianPrice.buffer).setBigUint64(0, medianPriceValue);
-
-  const encoded = new Uint8Array([
-    ...ticker,
-    ...precision,
-    ...variance,
-    ...timestampBuf,
-    ...medianPrice,
-  ]);
-
-  acc.push(encoded);
-  return acc;
-}, []);
-
-const result = encodedPrices.reduce((acc, bytes) => {
-  const newBuffer = new Uint8Array(acc.length + bytes.length);
-  newBuffer.set(acc);
-  newBuffer.set(bytes, acc.length);
-  return newBuffer;
-}, new Uint8Array());
-
-return Buffer.from(result, "hex");
+return Buffer.concat(buffers);

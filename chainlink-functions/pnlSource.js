@@ -1,17 +1,17 @@
 const ethers = await import("npm:ethers@6.10.0");
 const { Buffer } = await import("node:buffer");
 
-const RPC_URL = ""; // Your RPC URL
-const MARKET = "0x"; // Market Address
-const MARKET_UTILS = "0x"; // MarketUtils Address
-const PRICE_FEED = "0x"; // PriceFeed Address
-const ORACLE = "0x"; // Oracle Address
+const RPC_URL = "";
+const MARKET = "0x";
+const MARKET_UTILS = "0x";
+const PRICE_FEED = "0x";
+const ORACLE = "0x";
 
 const PRECISION_DIVISOR = 10000000000000000000000000000n;
 
-const MARKET_ABI = []; // Market contract ABI
-const MARKET_UTILS_ABI = []; // MarketUtils contract ABI
-const ORACLE_ABI = []; // Oracle contract ABI
+const MARKET_ABI = [];
+const MARKET_UTILS_ABI = [];
+const ORACLE_ABI = [];
 
 // Chainlink Functions compatible Ethers JSON RPC provider class
 class FunctionsJsonRpcProvider extends ethers.JsonRpcProvider {
@@ -45,56 +45,67 @@ const marketId = args[1];
 const tickers = await market.getTickers(marketId);
 
 const getMedianPrice = async (ticker) => {
-  const timeStart = timestamp - 1;
-  const timeEnd = timestamp;
+  const currentTime = Math.floor(Date.now() / 1000);
 
-  const cmcRequest = await Functions.makeHttpRequest({
-    url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
-    headers: {
-      "Content-Type": "application/json",
-      "X-CMC_PRO_API_KEY": secrets.apiKey,
-    },
-    params: {
-      symbol: tickers,
-      time_start: timeStart,
-      time_end: timeEnd,
-    },
-  });
+  let cmcResponse;
+  let isLatest;
 
-  const cmcResponse = await cmcRequest;
+  // If it's been < 5 minutes since request, fetch latest prices (lower latency)
+  if (currentTime - timestamp < 300) {
+    const cmcRequest = await Functions.makeHttpRequest({
+      url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,
+      headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+      params: {
+        symbol: tickers,
+      },
+    });
+    cmcResponse = await cmcRequest;
+    isLatest = true;
+  } else {
+    const cmcRequest = await Functions.makeHttpRequest({
+      url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
+      headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+      params: {
+        symbol: tickers,
+        time_end: timestamp,
+      },
+    });
+    cmcResponse = await cmcRequest;
+    isLatest = false;
+  }
 
-  if (cmcResponse.status !== 200) {
+  if (cmcResponse.status !== 200 || cmcResponse.data.status.error_code !== 0) {
     throw new Error("GET Request to CMC API Failed");
   }
 
-  const data = cmcResponse.data.data;
-  const quotes = data[ticker][0].quotes;
-  const validQuotes = quotes.filter((quote) => quote.quote && quote.quote.USD);
-  const totalQuotes = validQuotes.length;
+  const data = cmcResponse.data.data[ticker][0]; // Get the first entry for the ticker
+  const quotes = data.quote;
 
-  if (totalQuotes === 0) {
-    return 0;
+  let medianPrice;
+
+  if (isLatest) {
+    medianPrice = Math.round(quotes.USD.price * 100);
+  } else {
+    medianPrice = getQuotes(quotes);
   }
 
-  const aggregated = validQuotes.reduce(
-    (acc, quote) => {
-      acc.open += quote.quote.USD.open;
-      acc.high += quote.quote.USD.high;
-      acc.low += quote.quote.USD.low;
-      acc.close += quote.quote.USD.close;
-      return acc;
-    },
-    { open: 0, high: 0, low: 0, close: 0 }
-  );
-
-  const medianPrice = (aggregated.open + aggregated.close) / 2;
   return medianPrice;
 };
 
-const getBaseUnit = async (ticker) => {
-  const oracle = new ethers.Contract(ORACLE, ORACLE_ABI, provider);
-  const baseUnit = await oracle.getBaseUnit(PRICE_FEED, ticker);
-  return baseUnit;
+const getBaseUnit = (ticker) => {
+  const baseUnits = {
+    BTC: 1e8,
+    ETH: 1e18,
+  };
+  return baseUnits[ticker] || 1e18; // Default to 1e18 if not found
+};
+
+const getQuotes = (quotes) => {
+  return Math.round(quotes[Math.floor(quotes.length / 2)] * 100);
+};
+
+const getRandomOpenInterest = () => {
+  return Math.floor(Math.random() * 1000000); // Ensure open interest is always positive
 };
 
 const calculateCumulativePnl = async () => {
@@ -113,7 +124,8 @@ const calculateCumulativePnl = async () => {
       true
     );
 
-    cumulativePnl += pnlLong;
+    // Convert to 2.dp
+    cumulativePnl += pnlLong / PRECISION_DIVISOR;
 
     const pnlShort = await marketUtils.getMarketPnl(
       marketId,
@@ -124,16 +136,14 @@ const calculateCumulativePnl = async () => {
       false
     );
 
-    cumulativePnl += pnlShort;
+    // Convert to 2 d.p
+    cumulativePnl += pnlShort / PRECISION_DIVISOR;
   }
-
-  // Convert cumulative PnL to 2 decimals of precision
-  const scaledCumulativePnl = cumulativePnl / PRECISION_DIVISOR;
 
   return {
     precision: 2,
-    timestamp: timestamp,
-    cumulativePnl: scaledCumulativePnl,
+    timestamp: Math.floor(Date.now() / 1000), // Ensure correct timestamp
+    cumulativePnl: cumulativePnl,
   };
 };
 
@@ -144,10 +154,16 @@ const formatResult = (result) => {
   buffer.writeUInt8(result.precision, 0);
 
   // Timestamp (6 bytes)
-  buffer.writeBigUInt64BE(BigInt(result.timestamp), 1);
+  buffer.writeUIntBE(result.timestamp, 1, 6); // Write timestamp as 6 bytes
 
   // Cumulative PnL (16 bytes)
-  buffer.writeBigInt64BE(BigInt(result.cumulativePnl), 7);
+  const pnlBuffer = Buffer.alloc(16);
+  let cumulativePnl = BigInt(result.cumulativePnl);
+  if (cumulativePnl < 0) {
+    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl; // Convert to two's complement for negative values
+  }
+  pnlBuffer.writeBigInt64BE(cumulativePnl, 8); // Store as 128-bit integer
+  buffer.set(pnlBuffer, 7); // Set the PnL bytes in the result buffer
 
   return buffer.toString("hex");
 };
@@ -155,4 +171,4 @@ const formatResult = (result) => {
 const result = await calculateCumulativePnl();
 const formattedResult = formatResult(result);
 
-return Buffer.from(formattedResult, 'hex');
+return Buffer.from(formattedResult, "hex");
