@@ -18,6 +18,8 @@ interface IHelperConfig {
         address pyth;
         bool mockFeed;
         address sequencerUptimeFeed;
+        string priceSource;
+        string pnlSource;
     }
 
     function getActiveNetworkConfig() external view returns (NetworkConfig memory);

@@ -46,51 +46,6 @@ contract Deploy is Script {
     uint256 internal constant _ROLE_5 = 1 << 5;
     uint256 internal constant _ROLE_6 = 1 << 6;
 
-    // Inline entire file
-    string priceUpdateSource = 'const { Buffer } = await import("node:buffer");'
-        "const timestampUnix = Number(args[0]);" "const timeStart = timestampUnix - 1;" "const timeEnd = timestampUnix;"
-        'const tickers = args.slice(1).join(",");' "if (!secrets.apiKey) {" "  throw new Error("
-        '    "COINMARKETCAP_API_KEY environment variable not set for CoinMarketCap API. Get a free key from https://coinmarketcap.com/api/"'
-        "  );" "}" "const cmcRequest = await Functions.makeHttpRequest({"
-        "  url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical`," "  headers: {"
-        '    "Content-Type": "application/json",' '    "X-CMC_PRO_API_KEY": secrets.apiKey,' "  }," "  params: {"
-        "    symbol: tickers," "    time_start: timeStart," "    time_end: timeEnd," "  }," "});"
-        'console.log("Cmc Request: ", cmcRequest);' "const cmcResponse = await cmcRequest;"
-        "if (cmcResponse.status !== 200) {" '  throw new Error("GET Request to CMC API Failed");' "}"
-        "const data = cmcResponse.data.data;" "// Function to aggregate quotes" "const aggregateQuotes = (quotes) => {"
-        "  const validQuotes = quotes.filter((quote) => quote.quote && quote.quote.USD);"
-        "  const totalQuotes = validQuotes.length;" "  if (totalQuotes === 0) {"
-        "    return { open: 0, high: 0, low: 0, close: 0 };" "  }" "  const aggregated = validQuotes.reduce("
-        "    (acc, quote) => {" "      acc.open += quote.quote.USD.open;" "      acc.high += quote.quote.USD.high;"
-        "      acc.low += quote.quote.USD.low;" "      acc.close += quote.quote.USD.close;" "      return acc;" "    },"
-        "    { open: 0, high: 0, low: 0, close: 0 }" "  );" "  return {" "    open: aggregated.open / totalQuotes,"
-        "    high: aggregated.high / totalQuotes," "    low: aggregated.low / totalQuotes,"
-        "    close: aggregated.close / totalQuotes," "  };" "};"
-        "const filteredData = Object.keys(data).reduce((acc, key) => {" "  const assets = data[key];"
-        "  if (assets.length > 0) {" "    const highestMarketCapAsset = assets[0]; // Take the first asset"
-        "    highestMarketCapAsset.aggregatedQuotes = aggregateQuotes(" "      highestMarketCapAsset.quotes" "    );"
-        "    acc.push(highestMarketCapAsset);" "  }" "  return acc;" "}, []);"
-        "    const encodedPrices = filteredData.reduce((acc, tokenData) => {"
-        "  const { symbol, aggregatedQuotes } = tokenData;" "  const { open, high, low, close } = aggregatedQuotes;"
-        "  // Encoding ticker to exactly 15 bytes with padding" "  const tickerBuffer = Buffer.alloc(15);"
-        "  tickerBuffer.write(symbol);" "  const ticker = new Uint8Array(tickerBuffer);"
-        "  const precision = new Uint8Array(1);" "  precision[0] = 2; // Assuming 2 decimal places"
-        "  const varianceValue = Math.round(((high - low) / low) * 10000);" "  const variance = new Uint8Array(2);"
-        "  new DataView(variance.buffer).setUint16(0, varianceValue);"
-        "  // Correct timestamp conversion to 6-byte array" "  const timestampSeconds = BigInt(args[0]);"
-        "  const timestampBuf = new Uint8Array(6);" "  for (let i = 0; i < 6; i++) {"
-        "    timestampBuf[5 - i] = Number(" "      (timestampSeconds >> BigInt(i * 8)) & BigInt(0xff)" "    );" "  }"
-        "const medianPriceValue = BigInt(Math.round(((open + close) / 2) * 100)); // Ensure correct scaling"
-        "const medianPrice = new Uint8Array(8);" "new DataView(medianPrice.buffer).setBigUint64(0, medianPriceValue);"
-        "const encoded = new Uint8Array([" "...ticker," "...precision," "...variance," "...timestampBuf,"
-        "...medianPrice," "]);" "acc.push(encoded);" "return acc;" "}, []);"
-        "const result = encodedPrices.reduce((acc, bytes) => {"
-        "const newBuffer = new Uint8Array(acc.length + bytes.length);" "newBuffer.set(acc);"
-        "newBuffer.set(bytes, acc.length);" "return newBuffer;" "}, new Uint8Array());"
-        'return Buffer.from(result, "hex")';
-    // Inline entire file
-    string cumulativePnlSource;
-
     function run() external returns (Contracts memory contracts) {
         helperConfig = new HelperConfig();
         IPriceFeed priceFeed;
@@ -229,8 +184,8 @@ contract Deploy is Script {
 
         // @audit - dummy values
         contracts.priceFeed.initialize(
-            priceUpdateSource,
-            cumulativePnlSource,
+            activeNetworkConfig.priceSource,
+            activeNetworkConfig.pnlSource,
             0.0001 gwei,
             300_000,
             0.0001 gwei,

@@ -13,7 +13,7 @@ const currentTime = Math.floor(Date.now() / 1000);
 let cmcResponse;
 let isLatest;
 
-// If it's been < 5 minutes since request, fetch latest prices (lower latency)
+// If its been < 5 minutes since request, fetch latest prices (lower latency)
 if (currentTime - timestamp < 300) {
   const cmcRequest = await Functions.makeHttpRequest({
     url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,

@@ -50,7 +50,7 @@ const getMedianPrice = async (ticker) => {
   let cmcResponse;
   let isLatest;
 
-  // If it's been < 5 minutes since request, fetch latest prices (lower latency)
+  // If its been < 5 minutes since request, fetch latest prices (lower latency)
   if (currentTime - timestamp < 300) {
     const cmcRequest = await Functions.makeHttpRequest({
       url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,
@@ -160,7 +160,7 @@ const formatResult = (result) => {
   const pnlBuffer = Buffer.alloc(16);
   let cumulativePnl = BigInt(result.cumulativePnl);
   if (cumulativePnl < 0) {
-    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl; // Convert to two's complement for negative values
+    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl; // Convert to twos complement for negative values
   }
   pnlBuffer.writeBigInt64BE(cumulativePnl, 8); // Store as 128-bit integer
   buffer.set(pnlBuffer, 7); // Set the PnL bytes in the result buffer
