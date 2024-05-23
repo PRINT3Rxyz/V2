@@ -18,68 +18,64 @@ const testPnlSource = async (args) => {
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
 
   const market = new ethers.Contract(MARKET, MARKET_ABI, provider);
-  const marketUtils = new ethers.Contract(MARKET_UTILS, MARKET_UTILS_ABI, provider);
+  const marketUtils = new ethers.Contract(
+    MARKET_UTILS,
+    MARKET_UTILS_ABI,
+    provider
+  );
 
   const timestamp = Number(args[0]);
   const marketId = args[1];
 
-  const tickers = ['BTC', 'ETH']; // Example tickers
+  const tickers = ["BTC", "ETH"]; // Example tickers
 
   const getMedianPrice = async (ticker) => {
-    const timeStart = timestamp - 1;
-    console.log("Time start: ", timeStart);
-    const timeEnd = timestamp;
-    console.log("Time end: ", timeEnd);
+    const currentTime = Math.floor(Date.now() / 1000);
 
-    const cmcRequest = await axios({
-      url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical?symbol=${ticker}&time_start=${timeStart}&time_end=${timeEnd}`,
-      headers: { "X-CMC_PRO_API_KEY": process.env.COINMARKETCAP_API_KEY },
-      method: "GET",
-    });
+    let cmcResponse;
+    let isLatest;
 
-    const cmcResponse = await cmcRequest;
+    // If it's been < 5 minutes since request, fetch latest prices (lower latency)
+    if (currentTime - timestamp < 300) {
+      const cmcRequest = await axios({
+        url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=${tickers}`,
+        headers: { "X-CMC_PRO_API_KEY": process.env.COINMARKETCAP_API_KEY },
+        method: "GET",
+      });
+      cmcResponse = await cmcRequest;
+      isLatest = true;
+    } else {
+      const cmcRequest = await axios({
+        url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical?symbol=${tickers}&time_end=${timestamp}`,
+        headers: { "X-CMC_PRO_API_KEY": process.env.COINMARKETCAP_API_KEY },
+        method: "GET",
+      });
+      cmcResponse = await cmcRequest;
+      isLatest = false;
+    }
 
-    if (cmcResponse.status !== 200 || cmcResponse.data.status.error_code !== 0) {
+    if (
+      cmcResponse.status !== 200 ||
+      cmcResponse.data.status.error_code !== 0
+    ) {
       throw new Error("GET Request to CMC API Failed");
     }
 
     const data = cmcResponse.data.data[ticker][0]; // Get the first entry for the ticker
-    const quotes = data.quotes;
+    const quotes = data.quote;
 
 
-    console.log(`Quotes for ${ticker}:`);
-    quotes.forEach((quote, index) => {
-      console.log(`Quote ${index + 1}: Open: ${quote.quote.USD.open}, High: ${quote.quote.USD.high}, Low: ${quote.quote.USD.low}, Close: ${quote.quote.USD.close}, Timestamp: ${quote.quote.USD.timestamp}`);
+    console.log("Quotes: ", quotes);
 
-    });
+    let medianPrice;
 
-    if (!quotes || quotes.length === 0) {
-      throw new Error(`No quotes found for ${ticker}`);
+    if (isLatest) {
+      medianPrice = Math.round(quotes.USD.price * 100);
+    } else {
+      medianPrice = getQuotes(quotes);
     }
 
-    const validQuotes = quotes.filter((quote) => {
-      const usdQuote = quote.quote.USD;
-      return usdQuote.open > 0 && usdQuote.high > 0 && usdQuote.low > 0 && usdQuote.close > 0;
-    });
-
-    if (validQuotes.length === 0) {
-      throw new Error(`No valid quotes found for ${ticker}`);
-    }
-
-    const aggregated = validQuotes.reduce(
-      (acc, quote) => {
-        const usdQuote = quote.quote.USD;
-        acc.open += usdQuote.open;
-        acc.high += usdQuote.high;
-        acc.low += usdQuote.low;
-        acc.close += usdQuote.close;
-        return acc;
-      },
-      { open: 0, high: 0, low: 0, close: 0 }
-    );
-
-    const medianPrice = (aggregated.open + aggregated.close) / (2 * validQuotes.length);
-    return Math.round(medianPrice); // Adjust for one decimal place
+    return medianPrice;
   };
 
   const getBaseUnit = (ticker) => {
@@ -88,6 +84,10 @@ const testPnlSource = async (args) => {
       ETH: 1e18,
     };
     return baseUnits[ticker] || 1e18; // Default to 1e18 if not found
+  };
+
+  const getQuotes = (quotes) => {
+    return Math.round(quotes[Math.floor(quotes.length / 2)] * 100);
   };
 
   const getRandomOpenInterest = () => {
@@ -110,10 +110,12 @@ const testPnlSource = async (args) => {
       console.log(`Open Interest Long: ${openInterestLong}`);
       console.log(`Open Interest Short: ${openInterestShort}`);
 
-      const pnlLong = BigInt(openInterestLong) * BigInt(medianPrice) / BigInt(baseUnit);
+      const pnlLong =
+        (BigInt(openInterestLong) * BigInt(medianPrice)) / BigInt(baseUnit);
       cumulativePnl += pnlLong;
 
-      const pnlShort = BigInt(openInterestShort) * BigInt(medianPrice) / BigInt(baseUnit);
+      const pnlShort =
+        (BigInt(openInterestShort) * BigInt(medianPrice)) / BigInt(baseUnit);
       cumulativePnl += pnlShort;
 
       console.log(`PnL Long: ${pnlLong}`);
