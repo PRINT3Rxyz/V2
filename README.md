@@ -25,7 +25,7 @@ Markets operate as virtual AMMs, where ETH / WETH is used to back long positions
 
 There are 2 types of markets that can be created. A multi-asset market, or a single asset market. Multi-Asset markets are markets that support trading for multiple assets with 1 single source of liquidity, where traditional single asset markets involve 1 single asset, linked to a singular vault smart contract.
 
-Multi-Asset markets are currently restricted so that they're only deployable by the contract administrator / protocol.
+Multi-Asset markets are currently restricted so that they're only deployable by the contract administrator / protocol. They may become available to the general public after we weigh the associated risks.
 
 **Requesting New Markets**
 
