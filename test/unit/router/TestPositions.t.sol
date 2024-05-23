@@ -88,7 +88,7 @@ contract TestPositions is Test {
         vm.label(address(feeDistributor), "feeDistributor");
 
         OWNER = contracts.owner;
-        (weth, usdc, link,,,,,,,) = deploy.activeNetworkConfig();
+        (weth, usdc, link,,,,,,,) = deploy.helperContracts();
         tickers.push(ethTicker);
         tickers.push(usdcTicker);
         // Pass some time so block timestamp isn't 0
@@ -100,6 +100,7 @@ contract TestPositions is Test {
 
     modifier setUpMarkets() {
         vm.deal(OWNER, 2_000_000 ether);
+        console2.log("USDC: ", usdc);
         MockUSDC(usdc).mint(OWNER, 1_000_000_000e6);
         vm.deal(USER, 2_000_000 ether);
         MockUSDC(usdc).mint(USER, 1_000_000_000e6);
