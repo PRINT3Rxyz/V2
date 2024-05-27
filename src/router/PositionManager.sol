@@ -45,6 +45,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
     IReferralStorage public referralStorage;
     IPriceFeed public priceFeed;
     IMarket public market;
+    ITradeStorage public tradeStorage;
 
     // Base Gas for a TX
     uint256 public baseGasLimit;
@@ -56,6 +57,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
     constructor(
         address _marketFactory,
         address _market,
+        address _tradeStorage,
         address _rewardTracker,
         address _referralStorage,
         address _priceFeed,
@@ -66,6 +68,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         _initializeOwner(msg.sender);
         marketFactory = IMarketFactory(_marketFactory);
         market = IMarket(_market);
+        tradeStorage = ITradeStorage(_tradeStorage);
         referralStorage = IReferralStorage(_referralStorage);
         rewardTracker = IGlobalRewardTracker(_rewardTracker);
         priceFeed = IPriceFeed(_priceFeed);
@@ -195,8 +198,6 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
     {
         uint256 initialGas = gasleft();
 
-        ITradeStorage tradeStorage = market.tradeStorage();
-
         (Execution.FeeState memory feeState, Position.Request memory request) =
             tradeStorage.executePositionRequest(_id, _orderKey, _requestKey, _feeReceiver);
 
@@ -231,8 +232,6 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         isValidMarket(_id)
         nonReentrant
     {
-        ITradeStorage tradeStorage = market.tradeStorage();
-
         Position.Request memory request = tradeStorage.getOrder(_id, _key);
 
         if (request.user == address(0)) revert PositionManager_RequestDoesNotExist();

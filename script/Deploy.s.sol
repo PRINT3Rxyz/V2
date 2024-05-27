@@ -214,6 +214,7 @@ contract Deploy is Script {
         contracts.positionManager = new PositionManager(
             address(contracts.marketFactory),
             address(contracts.market),
+            address(contracts.tradeStorage),
             address(contracts.rewardTracker),
             address(contracts.referralStorage),
             address(contracts.priceFeed),
