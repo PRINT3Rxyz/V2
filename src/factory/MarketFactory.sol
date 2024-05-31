@@ -5,7 +5,6 @@ import {IMarketFactory} from "./interfaces/IMarketFactory.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 import {IMarket} from "../markets/interfaces/IMarket.sol";
-import {FeedRegistryInterface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {IUniswapV3Factory} from "../oracle/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV2Factory} from "../oracle/interfaces/IUniswapV2Factory.sol";
 import {IPyth} from "@pyth/contracts/IPyth.sol";
@@ -48,7 +47,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     IPositionManager positionManager;
     address router;
 
-    FeedRegistryInterface private feedRegistry;
     IPyth private pyth;
     IUniswapV2Factory private uniV2Factory;
     IUniswapV3Factory private uniV3Factory;
@@ -129,13 +127,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         rewardTracker = IGlobalRewardTracker(_rewardTracker);
     }
 
-    function setFeedValidators(
-        address _chainlinkFeedRegistry,
-        address _pyth,
-        address _uniV2Factory,
-        address _uniV3Factory
-    ) external onlyOwner {
-        feedRegistry = FeedRegistryInterface(_chainlinkFeedRegistry);
+    function setFeedValidators(address _pyth, address _uniV2Factory, address _uniV3Factory) external onlyOwner {
         pyth = IPyth(_pyth);
         uniV2Factory = IUniswapV2Factory(_uniV2Factory);
         uniV3Factory = IUniswapV3Factory(_uniV3Factory);
@@ -315,7 +307,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         Oracle.validateFeedType(_params.strategy.feedType);
 
         if (_params.strategy.feedType == IPriceFeed.FeedType.CHAINLINK) {
-            Oracle.isValidChainlinkFeed(feedRegistry, _params.strategy.feedAddress);
+            Oracle.isValidChainlinkFeed(_params.strategy.feedAddress);
         } else if (_params.strategy.feedType == IPriceFeed.FeedType.PYTH) {
             Oracle.isValidPythFeed(pyth, _params.strategy.feedId);
         } else if (

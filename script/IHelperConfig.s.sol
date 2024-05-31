@@ -18,7 +18,6 @@ interface IHelperConfig {
         address uniV3SwapRouter;
         address uniV3Factory;
         address chainlinkRouter;
-        address chainlinkFeedRegistory;
         address uniV2Factory;
         address pyth;
         address sequencerUptimeFeed;

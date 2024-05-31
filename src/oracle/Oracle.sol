@@ -9,7 +9,6 @@ import {IUniswapV3Pool} from "./interfaces/IUniswapV3Pool.sol";
 import {IUniswapV2Pair} from "./interfaces/IUniswapV2Pair.sol";
 import {IUniswapV3Factory} from "./interfaces/IUniswapV3Factory.sol";
 import {IUniswapV2Factory} from "./interfaces/IUniswapV2Factory.sol";
-import {FeedRegistryInterface} from "@chainlink/contracts/src/v0.8/interfaces/FeedRegistryInterface.sol";
 import {MerkleProofLib} from "../libraries/MerkleProofLib.sol";
 import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {PythStructs} from "@pyth/contracts/PythStructs.sol";
@@ -89,8 +88,10 @@ library Oracle {
         }
     }
 
-    function isValidChainlinkFeed(FeedRegistryInterface feedRegistry, address _feedAddress) internal view {
-        if (!feedRegistry.isFeedEnabled(_feedAddress)) revert Oracle_InvalidSecondaryStrategy();
+    function isValidChainlinkFeed(address _feedAddress) internal view {
+        AggregatorV2V3Interface chainlinkFeed = AggregatorV2V3Interface(_feedAddress);
+        int256 signedPrice = chainlinkFeed.latestAnswer();
+        if (signedPrice == 0) revert Oracle_InvalidSecondaryStrategy();
     }
 
     function isValidUniswapV3Pool(
@@ -360,6 +361,44 @@ library Oracle {
         return medPrice.absDiff(referencePrice) <= referencePrice.percentage(MAX_PRICE_DEVIATION);
     }
 
+    function encodePrices(
+        string[] calldata _tickers,
+        uint8[] calldata _precisions,
+        uint16[] calldata _variances,
+        uint48[] calldata _timestamps,
+        uint64[] calldata _meds
+    ) external pure returns (bytes memory) {
+        uint16 len = uint16(_tickers.length);
+
+        bytes32[] memory encodedPrices = new bytes32[](len);
+
+        for (uint16 i = 0; i < len;) {
+            bytes32 encodedPrice = bytes32(
+                abi.encodePacked(bytes15(bytes(_tickers[i])), _precisions[i], _variances[i], _timestamps[i], _meds[i])
+            );
+
+            encodedPrices[i] = encodedPrice;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return abi.encodePacked(encodedPrices);
+    }
+
+    function encodePnl(uint8 _precision, uint48 _timestamp, int128 _cumulativePnl)
+        external
+        pure
+        returns (bytes memory)
+    {
+        IPriceFeed.Pnl memory pnl;
+        pnl.precision = _precision;
+        pnl.timestamp = _timestamp;
+        pnl.cumulativePnl = _cumulativePnl;
+        return abi.encodePacked(pnl.precision, pnl.timestamp, pnl.cumulativePnl);
+    }
+
     /**
      * =========================================== Reference Prices ===========================================
      */
@@ -379,7 +418,7 @@ library Oracle {
         if (strategy.feedType == IPriceFeed.FeedType.CHAINLINK) {
             price = _getChainlinkPrice(strategy);
         } else if (strategy.feedType == IPriceFeed.FeedType.PYTH) {
-            price = _getPythPrice(priceFeed, strategy, _ticker);
+            price = _getPythPrice(strategy);
         } else if (strategy.feedType == IPriceFeed.FeedType.UNI_V30 || strategy.feedType == IPriceFeed.FeedType.UNI_V31)
         {
             price = _getUniswapV3Price(strategy);
@@ -462,15 +501,11 @@ library Oracle {
     }
 
     // Need the Pyth address and the bytes32 id for the ticker
-    function _getPythPrice(IPriceFeed priceFeed, IPriceFeed.SecondaryStrategy memory _strategy, string memory _ticker)
-        private
-        view
-        returns (uint256 price)
-    {
+    function _getPythPrice(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {
         if (_strategy.feedType != IPriceFeed.FeedType.PYTH) revert Oracle_InvalidReferenceQuery();
         // Query the Pyth feed for the price
         IPyth pythFeed = IPyth(_strategy.feedAddress);
-        PythStructs.Price memory pythData = pythFeed.getEmaPriceUnsafe(priceFeed.getPythId(_ticker));
+        PythStructs.Price memory pythData = pythFeed.getEmaPriceUnsafe(_strategy.feedId);
         // Expand the price to 30 d.p
         uint256 exponent = PRICE_DECIMALS - pythData.expo.abs();
         price = pythData.price.abs() * (10 ** exponent);

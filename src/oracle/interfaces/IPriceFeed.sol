@@ -131,5 +131,4 @@ interface IPriceFeed {
     function timeToExpiration() external view returns (uint48);
     function isRequestValid(bytes32 _requestKey) external view returns (bool);
     function tokenDecimals(string memory _ticker) external view returns (uint8);
-    function getPythId(string memory _ticker) external view returns (bytes32);
 }

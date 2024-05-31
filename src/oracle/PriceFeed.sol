@@ -469,44 +469,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     /**
      * ================================== External / Getter Functions ==================================
      */
-    function encodePrices(
-        string[] calldata _tickers,
-        uint8[] calldata _precisions,
-        uint16[] calldata _variances,
-        uint48[] calldata _timestamps,
-        uint64[] calldata _meds
-    ) external pure returns (bytes memory) {
-        uint16 len = uint16(_tickers.length);
-
-        bytes32[] memory encodedPrices = new bytes32[](len);
-
-        for (uint16 i = 0; i < len;) {
-            bytes32 encodedPrice = bytes32(
-                abi.encodePacked(bytes15(bytes(_tickers[i])), _precisions[i], _variances[i], _timestamps[i], _meds[i])
-            );
-
-            encodedPrices[i] = encodedPrice;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        return abi.encodePacked(encodedPrices);
-    }
-
-    function encodePnl(uint8 _precision, uint48 _timestamp, int128 _cumulativePnl)
-        external
-        pure
-        returns (bytes memory)
-    {
-        Pnl memory pnl;
-        pnl.precision = _precision;
-        pnl.timestamp = _timestamp;
-        pnl.cumulativePnl = _cumulativePnl;
-        return abi.encodePacked(pnl.precision, pnl.timestamp, pnl.cumulativePnl);
-    }
-
     function getPrices(string memory _ticker, uint48 _timestamp) external view returns (Price memory signedPrices) {
         signedPrices = prices[_ticker][_timestamp];
         if (signedPrices.timestamp == 0) revert PriceFeed_PriceRequired(_ticker);
@@ -533,10 +495,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     function getRequestData(bytes32 _requestKey) external view returns (RequestData memory) {
         bytes32 requestId = keyToId[_requestKey];
         return requestData.get(requestId);
-    }
-
-    function getPythId(string memory _ticker) external view returns (bytes32) {
-        return strategies[_ticker].feedId;
     }
 
     function isRequestValid(bytes32 _requestKey) external view returns (bool) {

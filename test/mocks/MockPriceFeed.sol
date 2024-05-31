@@ -467,10 +467,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         return requestData.get(_requestId);
     }
 
-    function getPythId(string memory _ticker) external view returns (bytes32) {
-        return strategies[_ticker].feedId;
-    }
-
     function isRequestValid(bytes32 _requestKey) external view returns (bool) {
         bytes32 requestId = keyToId[_requestKey];
         return requestData.contains(requestId);
