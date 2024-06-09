@@ -94,6 +94,10 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         feeForExecution = _feeForExecution;
     }
 
+    function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {
+        priceFeed = _priceFeed;
+    }
+
     function executePositionRequest(MarketId _id, Position.Settlement memory _params)
         external
         onlyRoles(_ROLE_4)

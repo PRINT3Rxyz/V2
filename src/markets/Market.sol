@@ -195,6 +195,10 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         emit MarketConfigUpdated(assetId);
     }
 
+    function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {
+        priceFeed = _priceFeed;
+    }
+
     /**
      * =========================================== User Interaction Functions  ===========================================
      */

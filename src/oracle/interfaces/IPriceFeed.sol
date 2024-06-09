@@ -19,10 +19,15 @@ interface IPriceFeed {
     }
 
     struct SecondaryStrategy {
+        // Does the asset have a secondary strategy?
         bool exists;
+        // What type of secondary strategy is it?
         IPriceFeed.FeedType feedType;
+        // What is the address of the secondary strategy? (Chainlink, Uniswap, etc.)
         address feedAddress;
+        // What is the feed ID of the secondary strategy? (Pyth)
         bytes32 feedId;
+        // Merkle Proof proving that the strategy provided is a whitelisted strategy.
         bytes32[] merkleProof;
     }
 

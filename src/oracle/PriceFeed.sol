@@ -86,6 +86,11 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     EnumerableSetLib.Bytes32Set private assetIds;
     EnumerableSetLib.Bytes32Set private requestKeys;
 
+    modifier onlyFactoryOrRouter() {
+        if (rolesOf(msg.sender) != _ROLE_0 || rolesOf(msg.sender) != _ROLE_3) revert Unauthorized();
+        _;
+    }
+
     constructor(
         address _marketFactory,
         address _weth,
@@ -204,7 +209,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     function requestPriceUpdate(string[] calldata args, address _requester)
         external
         payable
-        onlyRoles(_ROLE_3)
+        onlyFactoryOrRouter
         nonReentrant
         returns (bytes32)
     {
