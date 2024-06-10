@@ -107,6 +107,7 @@ interface IPriceFeed {
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
     ) external;
+    function setEncryptedSecretUrls(bytes calldata _encryptedSecretsUrls) external;
     function getPrices(string memory _ticker, uint48 _timestamp) external view returns (Price memory signedPrices);
     function getCumulativePnl(MarketId marketId, uint48 _timestamp) external view returns (Pnl memory pnl);
     function updateBillingParameters(

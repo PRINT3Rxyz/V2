@@ -8,13 +8,8 @@ import {PriceFeed, IPriceFeed} from "src/oracle/PriceFeed.sol";
 import {Oracle} from "src/oracle/Oracle.sol";
 
 contract CreateMarket is Script {
-    /**
-     * 1. Call createNewMarket with given Input Struct -> Returns Request Key
-     * 2. Request Pricing for the Asset in question from Chainlink Functions --> Make Sure Functions is set up
-     * 3.
-     */
-    MarketFactory public marketFactory = MarketFactory(0xC56A5aB4B8d3e76b8841eAf92ec91e2E67838085);
-    PriceFeed public priceFeed = PriceFeed(0x4bDF5f4b07d4332397b754BC1ac24502f4D54a7D);
+    MarketFactory public marketFactory = MarketFactory(0xac5CccF314Db6f3310039484bDf14F774664d4D2);
+    PriceFeed public priceFeed = PriceFeed(0x1E6d3A7a3e080817d0BA3E9730766EF5C8A8c1Ad);
 
     function run() public {
         uint256 requestCost = marketFactory.marketCreationFee() + Oracle.estimateRequestCost(priceFeed);

@@ -141,6 +141,9 @@ contract Deploy is Script {
         "const result = await calculateCumulativePnl();" "const formattedResult = formatResult(result);"
         'return Buffer.from(formattedResult, "hex");';
 
+    bytes public encryptedSecretsUrls =
+        hex"50225c593c3142d7097ed73d01e76e8403a61945b3385dda1f5cc171f9c2f193f102fc1aee84ff9127d4813f63b8bfc2eef78704bc45735473152ee9c5af0b010f09c01fa7fb76693985382a0285315c05fc961266b03038f290373e3c5b011b59c6cbe51aef414f39f14d712f404ef894b57b44c13a809de86eaeea2792dcb06a6fb8fa22352a6ee86a26f2b82e076c6b78d7ccde693bba23d838e538f4d1d79f";
+
     function run() external returns (Contracts memory contracts) {
         helperConfig = new HelperConfig();
         IPriceFeed priceFeed;
@@ -289,10 +292,12 @@ contract Deploy is Script {
             300_000,
             0.005 ether,
             0.0001 gwei,
-            0xb113F5A928BCfF189C998ab20d753a47F9dE5A61,
+            activeNetworkConfig.contracts.nativeLinkUsdFeed, // LINK USD BASE SEPOLIA
             activeNetworkConfig.contracts.sequencerUptimeFeed,
             5 minutes
         );
+        contracts.priceFeed.setEncryptedSecretUrls(encryptedSecretsUrls);
+        OwnableRoles(address(contracts.priceFeed)).grantRoles(address(contracts.marketFactory), _ROLE_0);
 
         contracts.market.initialize(
             address(contracts.tradeStorage), address(contracts.priceFeed), address(contracts.marketFactory)

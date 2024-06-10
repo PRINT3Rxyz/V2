@@ -51,6 +51,9 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     uint8 maxRetries;
     bool private isInitialized;
 
+    uint8 donHostedSecretsSlotID;
+    uint64 donHostedSecretsVersion;
+    bytes encryptedSecretsUrls;
     // JavaScript source code
     // Hard code the javascript source code here for each request's execution function
     string priceUpdateSource;
@@ -130,6 +133,10 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         sequencerUptimeFeed = _sequencerUptimeFeed;
         timeToExpiration = _timeToExpiration;
         isInitialized = true;
+    }
+
+    function setEncryptedSecretUrls(bytes calldata _encryptedSecretsUrls) external {
+        encryptedSecretsUrls = _encryptedSecretsUrls;
     }
 
     function updateBillingParameters(

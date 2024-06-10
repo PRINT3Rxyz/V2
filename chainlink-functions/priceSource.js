@@ -4,7 +4,7 @@ const timestamp = Number(args[0]);
 
 const tickers = args.slice(1).join(",");
 
-if (!secrets.apiKey) {
+if (!secrets.API_KEY) {
   throw new Error("Missing COINMARKETCAP_API_KEY");
 }
 
@@ -17,7 +17,7 @@ let isLatest;
 if (currentTime - timestamp < 300) {
   const cmcRequest = await Functions.makeHttpRequest({
     url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,
-    headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+    headers: { "X-CMC_PRO_API_KEY": secrets.API_KEY },
     params: {
       symbol: tickers,
     },
@@ -27,7 +27,7 @@ if (currentTime - timestamp < 300) {
 } else {
   const cmcRequest = await Functions.makeHttpRequest({
     url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
-    headers: { "X-CMC_PRO_API_KEY": secrets.apiKey },
+    headers: { "X-CMC_PRO_API_KEY": secrets.API_KEY },
     params: {
       symbol: tickers,
       time_end: timestamp,
@@ -41,7 +41,7 @@ const cmcRequest = await Functions.makeHttpRequest({
   url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,
   headers: {
     "Content-Type": "application/json",
-    "X-CMC_PRO_API_KEY": secrets.apiKey,
+    "X-CMC_PRO_API_KEY": secrets.API_KEY,
   },
   params: {
     symbol: tickers,

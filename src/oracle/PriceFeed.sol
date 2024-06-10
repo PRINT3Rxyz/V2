@@ -54,6 +54,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     uint64 subscriptionId;
     uint64 settlementFee;
 
+    bytes public encryptedSecretsUrls;
     // JavaScript source code
     // Hard coded javascript source code here for each request's execution function
     string priceUpdateSource;
@@ -87,7 +88,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     EnumerableSetLib.Bytes32Set private requestKeys;
 
     modifier onlyFactoryOrRouter() {
-        if (rolesOf(msg.sender) != _ROLE_0 || rolesOf(msg.sender) != _ROLE_3) revert Unauthorized();
+        if (rolesOf(msg.sender) != _ROLE_0 && rolesOf(msg.sender) != _ROLE_3) revert Unauthorized();
         _;
     }
 
@@ -99,8 +100,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         address _uniV3Factory,
         uint64 _subId,
         bytes32 _donId,
-        address _router
-    ) FunctionsClient(_router) {
+        address _functionsRouter
+    ) FunctionsClient(_functionsRouter) {
         _initializeOwner(msg.sender);
         marketFactory = IMarketFactory(_marketFactory);
         WETH = _weth;
@@ -153,10 +154,11 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         nativeLinkPriceFeed = _nativeLinkPriceFeed;
     }
 
-    function setJavascriptSourceCode(string memory _priceUpdateSource, string memory _cumulativePnlSource)
-        external
-        onlyOwner
-    {
+    function setEncryptedSecretUrls(bytes calldata _encryptedSecretsUrls) external onlyOwner {
+        encryptedSecretsUrls = _encryptedSecretsUrls;
+    }
+
+    function updateFunctions(string memory _priceUpdateSource, string memory _cumulativePnlSource) external onlyOwner {
         priceUpdateSource = _priceUpdateSource;
         cumulativePnlSource = _cumulativePnlSource;
     }
@@ -386,6 +388,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         FunctionsRequest.Request memory req;
 
         req.initializeRequestForInlineJavaScript(_isPrice ? priceUpdateSource : cumulativePnlSource);
+
+        req.addSecretsReference(encryptedSecretsUrls);
 
         if (_args.length > 0) req.setArgs(_args);
 

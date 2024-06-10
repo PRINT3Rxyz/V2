@@ -21,6 +21,7 @@ interface IHelperConfig {
         address uniV2Factory;
         address pyth;
         address sequencerUptimeFeed;
+        address nativeLinkUsdFeed;
     }
 
     function getActiveNetworkConfig() external view returns (NetworkConfig memory);

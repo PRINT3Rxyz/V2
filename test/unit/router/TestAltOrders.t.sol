@@ -75,7 +75,7 @@ contract TestAltOrders is Test {
         tradeEngine = contracts.tradeEngine;
         feeDistributor = contracts.feeDistributor;
         OWNER = contracts.owner;
-        (weth, usdc, link,,,,,,) = deploy.helperContracts();
+        (weth, usdc, link,,,,,,,) = deploy.helperContracts();
         tickers.push(ethTicker);
         tickers.push(usdcTicker);
         // Pass some time so block timestamp isn't 0

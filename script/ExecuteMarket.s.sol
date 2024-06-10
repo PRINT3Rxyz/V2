@@ -5,8 +5,9 @@ import {Script} from "forge-std/Script.sol";
 import {MarketFactory} from "src/factory/MarketFactory.sol";
 
 contract ExecuteMarket is Script {
-    MarketFactory public marketFactory = MarketFactory(0xC56A5aB4B8d3e76b8841eAf92ec91e2E67838085);
-    bytes32 requestKey = bytes32(0);
+    MarketFactory public marketFactory = MarketFactory(0xac5CccF314Db6f3310039484bDf14F774664d4D2);
+    // Replace with RequestKey from CreateMarket script console
+    bytes32 requestKey = 0xa8b010e4cce0ca14448a7cc98095c44ce23e39e4fe59f9d34954275f9b9c96f1;
 
     function run() public {
         vm.broadcast();

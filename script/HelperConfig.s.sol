@@ -37,6 +37,7 @@ contract HelperConfig is IHelperConfig, Script {
         baseSepoliaConfig.contracts.uniV3SwapRouter = 0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4;
         baseSepoliaConfig.contracts.uniV3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
         baseSepoliaConfig.contracts.uniV2Factory = address(0);
+        baseSepoliaConfig.contracts.nativeLinkUsdFeed = 0xb113F5A928BCfF189C998ab20d753a47F9dE5A61;
 
         baseSepoliaConfig.contracts.pyth = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
         baseSepoliaConfig.subId = 54;
@@ -47,25 +48,6 @@ contract HelperConfig is IHelperConfig, Script {
 
         activeNetworkConfig = baseSepoliaConfig;
     }
-
-    // function getSepoliaConfig() public returns (NetworkConfig memory sepoliaConfig) {
-    //     // Need to configurate Price Feed for Sepolia and return
-    //     MockUSDC mockUsdc = new MockUSDC();
-    //     WETH weth = new WETH();
-
-    //     sepoliaConfig.weth = address(weth);
-    //     sepoliaConfig.usdc = address(mockUsdc);
-    //     sepoliaConfig.link = 0x779877A7B0D9E8603169DdbD7836e478b4624789;
-    //     sepoliaConfig.uniV3SwapRouter = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
-    //     sepoliaConfig.uniV3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
-    //     sepoliaConfig.subId = 1; // To fill out
-    //     sepoliaConfig.donId = keccak256(abi.encode("DON")); // To fill out
-    //     sepoliaConfig.chainlinkRouter = 0x7AFe30cB3E53dba6801aa0EA647A0EcEA7cBe18d; // To fill out
-    //     sepoliaConfig.mockFeed = false;
-    //     sepoliaConfig.sequencerUptimeFeed = address(0);
-
-    //     activeNetworkConfig = sepoliaConfig;
-    // }
 
     function getActiveNetworkConfig() public view returns (NetworkConfig memory) {
         return activeNetworkConfig;
