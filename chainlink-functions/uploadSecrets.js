@@ -6,11 +6,15 @@ const routerAddress = "0xf9B8fc078197181C841c296C876945aaa425B278";
 const donId = "fun-base-sepolia-1";
 
 
-const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL; //
+const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL; 
 
 const ethersProvider = new ethers.providers.JsonRpcProvider(
   rpcUrl
 );
+
+console.log("CoinMarketCap API Key: ", process.env.COINMARKETCAP_API_KEY);
+
+console.log("RPC URL: ", rpcUrl);
 
 
 const secrets = { API_KEY: process.env.COINMARKETCAP_API_KEY, RPC_URL: rpcUrl };

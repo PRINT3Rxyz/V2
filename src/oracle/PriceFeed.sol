@@ -428,7 +428,11 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
             if (!Oracle.validatePrice(this, price)) return;
 
-            prices[price.ticker.fromSmallString()][price.timestamp] = price;
+            string memory ticker = price.ticker.fromSmallString();
+
+            prices[ticker][price.timestamp] = price;
+
+            emit PriceUpdated(ticker, price.timestamp, price.med, price.variance);
 
             unchecked {
                 ++i;

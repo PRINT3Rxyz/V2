@@ -110,6 +110,8 @@ const encodePriceData = (ticker, priceData, timestamp, isLatest) => {
   
   testPriceSource(args).then((result) => {
     console.log("Concatenated Buffer: ", result);
+    const finalResult = new Uint8Array(result);
+    console.log("Final Result: ", finalResult);
   }).catch((error) => {
     console.error("Error: ", error);
   });

@@ -94,6 +94,7 @@ interface IPriceFeed {
     event AssetSupported(string indexed ticker, uint8 tokenDecimals);
     event SupportRemoved(string indexed ticker);
     event LinkBalanceSettled(uint256 indexed amount);
+    event PriceUpdated(string ticker, uint48 timestamp, uint64 medianPrice, uint16 variance);
 
     function sequencerUptimeFeed() external view returns (address);
     function initialize(

@@ -143,4 +143,6 @@ const formatResult = (result) => {
 const result = await calculateCumulativePnl();
 const formattedResult = formatResult(result);
 
-return Buffer.from(formattedResult, "hex");
+const returnValue = Buffer.from(formattedResult, "hex");
+
+return new Uint8Array(returnValue);
