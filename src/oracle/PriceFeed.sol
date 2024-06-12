@@ -77,11 +77,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     // Bi-directional to handle the case of invalidated requests
     mapping(bytes32 requestId => bytes32 requestKey) private idToKey;
     mapping(bytes32 requestKey => bytes32 requestId) private keyToId;
-    /**
-     * Used to count the number of failed price / pnl retrievals. If > MAX, the request is
-     * permanently invalidated and removed from storage.
-     */
-    mapping(bytes32 requestKey => uint256 retries) numberOfRetries;
 
     EnumerableMap.PriceMap private requestData;
     EnumerableSetLib.Bytes32Set private assetIds;
@@ -295,7 +290,12 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         if (!requestData.contains(requestId)) return;
 
         if (err.length > 0) {
-            _recreateRequest(requestId);
+            // If it errors, remove the request from storage
+            bytes32 requestKey = idToKey[requestId];
+            requestData.remove(requestId);
+            delete idToKey[requestId];
+            requestKeys.remove(requestKey);
+            delete keyToId[requestKey];
             return;
         }
 
@@ -357,33 +357,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     /**
      * ================================== Private Functions ==================================
      */
-
-    /// @dev Needed to re-request any failed requests to ensure they're fulfilled
-    function _recreateRequest(bytes32 _oldRequestId) private {
-        RequestData memory failedRequestData = requestData.get(_oldRequestId);
-
-        bytes32 requestKey = idToKey[_oldRequestId];
-
-        if (numberOfRetries[requestKey] > maxRetries) {
-            requestData.remove(_oldRequestId);
-            delete idToKey[_oldRequestId];
-            requestKeys.remove(requestKey);
-            delete keyToId[requestKey];
-        } else {
-            ++numberOfRetries[requestKey];
-
-            bytes32 newRequestId =
-                _requestFulfillment(failedRequestData.args, failedRequestData.requestType == RequestType.PRICE_UPDATE);
-
-            requestData.remove(_oldRequestId);
-            delete idToKey[_oldRequestId];
-            idToKey[newRequestId] = requestKey;
-            keyToId[requestKey] = newRequestId;
-
-            requestData.set(newRequestId, failedRequestData);
-        }
-    }
-
     function _requestFulfillment(string[] memory _args, bool _isPrice) private returns (bytes32 requestId) {
         FunctionsRequest.Request memory req;
 

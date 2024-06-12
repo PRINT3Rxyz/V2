@@ -399,12 +399,14 @@ library MarketUtils {
 
     function getMarketPnl(
         MarketId _id,
-        IMarket market,
+        address _market,
         string memory _ticker,
         uint256 _indexPrice,
         uint256 _indexBaseUnit,
         bool _isLong
     ) public view returns (int256 netPnl) {
+        IMarket market = IMarket(_market);
+
         uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
 
         uint256 averageEntryPrice = _getAverageEntryPrice(_id, market, _ticker, _isLong);
@@ -481,7 +483,7 @@ library MarketUtils {
         availableOi =
             remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, market, _ticker));
 
-        int256 pnl = getMarketPnl(_id, market, _ticker, _indexPrice, _indexBaseUnit, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _indexBaseUnit, _isLong);
 
         // if the pnl is positive, subtract it from the available oi
         if (pnl > 0) {
@@ -531,7 +533,7 @@ library MarketUtils {
             return 0;
         }
 
-        int256 pnl = getMarketPnl(_id, market, _ticker, _indexPrice, _indexBaseUnit, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _indexBaseUnit, _isLong);
 
         uint256 factor = pnl.abs().divWadUp(poolUsd);
 

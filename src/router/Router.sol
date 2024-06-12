@@ -18,6 +18,7 @@ import {IVault} from "../markets/interfaces/IVault.sol";
 import {Units} from "../libraries/Units.sol";
 import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
 import {MarketId} from "../types/MarketId.sol";
+import {Pool} from "../markets/Pool.sol";
 
 /// @dev Needs Router role
 // All user interactions should come through this contract
@@ -53,7 +54,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
     error Router_InvalidAsset();
     error Router_InvalidCollateralToken();
     error Router_InvalidAmountInForWrap();
-    error Router_InvalidPriceUpdateFee();
+    error Router_InvalidUpdateFee();
     error Router_InvalidStopLossPercentage();
     error Router_InvalidTakeProfitPercentage();
     error Router_InvalidAssetId();
@@ -293,7 +294,10 @@ contract Router is ReentrancyGuard, OwnableRoles {
      *
      * As the user doesn't provide the request in real time in these cases.
      *
-     * To prevent the case where a user requests pricing to execute an order,
+     * To prevent the case where a user requests pricing to execute an order.
+     *
+     * Can also be used in cases where the price / pnl fulfillment from the chainlink functions fails.
+     * In this case, a user will be incentivized to fetch a new price / pnl for the request
      */
     // Key can be an orderKey if limit new position, position key if limit decrease, sl, tp, adl or liquidation
     function requestExecutionPricing(MarketId _id, bytes32 _key, bool _isPositionKey)
@@ -311,9 +315,23 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
 
-        if (msg.value < priceUpdateFee) revert Router_InvalidPriceUpdateFee();
+        if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
 
         priceRequestKey = _requestPriceUpdate(msg.value, ticker);
+    }
+
+    // Used to request both pricing and pnl for a market action (deposit / withdrawal)
+    function requestDataForMarketAction(MarketId _id, bytes32 _key) external payable {
+        // Fetch the position request to ensure that it's valid
+        Pool.Input memory request = market.getRequest(_id, _key);
+        if (request.owner == address(0)) revert Router_InvalidRequest();
+        // Estimate how much the functions fulfillment will cost and ensure that the user has paid enough
+        uint256 updateFee = Oracle.estimateRequestCost(priceFeed);
+        if (msg.value < updateFee * 2) revert Router_InvalidUpdateFee();
+        // Request the price update
+        _requestPriceUpdate(updateFee, "");
+        // Request the pnl update
+        _requestPnlUpdate(_id, updateFee);
     }
 
     /**
@@ -326,14 +344,14 @@ contract Router is ReentrancyGuard, OwnableRoles {
      */
     function requestPricingForMarket(MarketId _id) external payable returns (bytes32 priceRequestKey) {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
-        if (msg.value < priceUpdateFee) revert Router_InvalidPriceUpdateFee();
+        if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
         string[] memory args = Oracle.constructMultiPriceArgs(_id, market);
         priceRequestKey = priceFeed.requestPriceUpdate{value: msg.value}(args, msg.sender);
     }
 
     function requestPricingForAsset(string calldata _ticker) external payable returns (bytes32 priceRequestKey) {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
-        if (msg.value < priceUpdateFee) revert Router_InvalidPriceUpdateFee();
+        if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
         priceRequestKey = _requestPriceUpdate(msg.value, _ticker);
     }
 

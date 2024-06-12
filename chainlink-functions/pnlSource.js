@@ -4,36 +4,45 @@ const { Buffer } = await import("node:buffer");
 // Replace with Market for Chain
 const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";
 // Replace With Market Utils for Chain
-const MARKET_UTILS = "0x92c549Fca37b8521533F6238674b768CCd051276";
-// Replace With Price Feed for Chain
-const PRICE_FEED = "0x5097300604337D2397783b4178214542af551786";
+const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";
+// Replace with Price Feed for Chain
+const PRICE_FEED = "0x4e6D2BbA749BE535C7AC1C2124060504E7801291";
 
 const PRECISION_DIVISOR = 10000000000000000000000000000n;
 
 const MARKET_ABI = [
   {
-    "type": "function",
-    "name": "getTickers",
-    "inputs": [{ "name": "_id", "type": "bytes32", "internalType": "MarketId" }],
-    "outputs": [{ "name": "", "type": "string[]", "internalType": "string[]" }],
-    "stateMutability": "view"
-  }
+    type: "function",
+    name: "getTickers",
+    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],
+    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],
+    stateMutability: "view",
+  },
 ];
 const MARKET_UTILS_ABI = [
   {
-    "type": "function",
-    "name": "getMarketPnl",
-    "inputs": [
-      { "name": "_id", "type": "bytes32", "internalType": "MarketId" },
-      { "name": "market", "type": "address", "internalType": "contract IMarket" },
-      { "name": "_ticker", "type": "string", "internalType": "string" },
-      { "name": "_indexPrice", "type": "uint256", "internalType": "uint256" },
-      { "name": "_indexBaseUnit", "type": "uint256", "internalType": "uint256" },
-      { "name": "_isLong", "type": "bool", "internalType": "bool" }
+    type: "function",
+    name: "getMarketPnl",
+    inputs: [
+      { name: "_id", type: "bytes32", internalType: "MarketId" },
+      { name: "_market", type: "address", internalType: "address" },
+      { name: "_ticker", type: "string", internalType: "string" },
+      { name: "_indexPrice", type: "uint256", internalType: "uint256" },
+      { name: "_indexBaseUnit", type: "uint256", internalType: "uint256" },
+      { name: "_isLong", type: "bool", internalType: "bool" },
     ],
-    "outputs": [{ "name": "netPnl", "type": "int256", "internalType": "int256" }],
-    "stateMutability": "view"
-  }
+    outputs: [{ name: "netPnl", type: "int256", internalType: "int256" }],
+    stateMutability: "view",
+  },
+];
+const PRICE_FEED_ABI = [
+  {
+    type: "function",
+    name: "tokenDecimals",
+    inputs: [{ name: "ticker", type: "string", internalType: "string" }],
+    outputs: [{ name: "", type: "uint8", internalType: "uint8" }],
+    stateMutability: "view",
+  },
 ];
 
 class FunctionsJsonRpcProvider extends ethers.JsonRpcProvider {
@@ -53,8 +62,15 @@ class FunctionsJsonRpcProvider extends ethers.JsonRpcProvider {
 }
 
 const provider = new FunctionsJsonRpcProvider(secrets.RPC_URL);
+
 const market = new ethers.Contract(MARKET, MARKET_ABI, provider);
-const marketUtils = new ethers.Contract(MARKET_UTILS, MARKET_UTILS_ABI, provider);
+
+const marketUtils = new ethers.Contract(
+  MARKET_UTILS,
+  MARKET_UTILS_ABI,
+  provider
+);
+const priceFeed = new ethers.Contract(PRICE_FEED, PRICE_FEED_ABI, provider);
 
 const timestamp = Number(args[0]);
 const marketId = args[1];
@@ -89,39 +105,80 @@ const getMedianPrice = async (ticker) => {
   }
 
   const data = cmcResponse.data.data[ticker][0];
-  const quotes = data.quote;
+  const quotes = isLatest ? data.quote : data.quotes;
   let medianPrice;
 
   if (isLatest) {
-    medianPrice = Math.round(quotes.USD.price * 100);
+    medianPrice =
+      BigInt(Math.round(quotes.USD.price * 100)) *
+      10000000000000000000000000000n;
   } else {
-    medianPrice = getQuotes(quotes);
+    medianPrice =
+      BigInt(Math.round(getQuote(quotes) * 100)) *
+      10000000000000000000000000000n;
   }
 
   return medianPrice;
 };
 
-const getBaseUnit = (ticker) => {
-  const baseUnits = { BTC: 1e8, ETH: 1e18 };
-  return baseUnits[ticker] || 1e18;
+const getBaseUnit = async (ticker) => {
+  const tokenDecimals = await priceFeed.tokenDecimals(ticker);
+  const baseUnit = tokenDecimals
+    ? BigInt(10 ** tokenDecimals)
+    : 1000000000000000000n;
+  return baseUnit;
 };
 
-const getQuotes = (quotes) => Math.round(quotes[Math.floor(quotes.length / 2)] * 100);
+const getQuote = (quotes) => {
+  const prices = quotes.map((quote) => quote.quote.USD.price);
+
+  const sortedPrices = prices.slice().sort((a, b) => a - b);
+
+  const medianPrice =
+    sortedPrices.length % 2 === 0
+      ? (sortedPrices[sortedPrices.length / 2 - 1] +
+          sortedPrices[sortedPrices.length / 2]) /
+        2
+      : sortedPrices[Math.floor(sortedPrices.length / 2)];
+
+  return medianPrice;
+};
 
 const calculateCumulativePnl = async () => {
   let cumulativePnl = 0n;
   for (const ticker of tickers) {
     const medianPrice = await getMedianPrice(ticker);
+
     const baseUnit = await getBaseUnit(ticker);
 
-    const pnlLong = await marketUtils.getMarketPnl(marketId, MARKET, ticker, medianPrice, baseUnit, true);
+    const pnlLong = await marketUtils.getMarketPnl(
+      marketId,
+      MARKET,
+      ticker,
+      medianPrice,
+      baseUnit,
+      true
+    );
+
     cumulativePnl += pnlLong / PRECISION_DIVISOR;
 
-    const pnlShort = await marketUtils.getMarketPnl(marketId, MARKET, ticker, medianPrice, baseUnit, false);
+    const pnlShort = await marketUtils.getMarketPnl(
+      marketId,
+      MARKET,
+      ticker,
+      medianPrice,
+      baseUnit,
+      false
+    );
+
     cumulativePnl += pnlShort / PRECISION_DIVISOR;
   }
 
-  return { precision: 2, timestamp: Math.floor(Date.now() / 1000), cumulativePnl: cumulativePnl };
+  return {
+    precision: 2,
+    timestamp: Math.floor(Date.now() / 1000),
+    cumulativePnl: cumulativePnl,
+  };
 };
 
 const formatResult = (result) => {
@@ -141,8 +198,12 @@ const formatResult = (result) => {
 };
 
 const result = await calculateCumulativePnl();
+
 const formattedResult = formatResult(result);
 
-const returnValue = Buffer.from(formattedResult, "hex");
+const arr = new Uint8Array(formattedResult.length / 2);
+for (let i = 0; i < arr.length; i++) {
+  arr[i] = parseInt(formattedResult.slice(i * 2, i * 2 + 2), 16);
+}
 
-return new Uint8Array(returnValue);
+return arr;
