@@ -238,6 +238,10 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         return requestKey;
     }
 
+    /**
+     * @notice - Needs a subgraph entity to store open interest
+     * values for historical blocks to enable for querying historical pnl.
+     */
     function requestCumulativeMarketPnl(MarketId _id, address _requester)
         external
         payable
