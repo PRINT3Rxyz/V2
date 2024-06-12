@@ -223,7 +223,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         isValidMarket(_id)
         nonReentrant
     {
-        market.tradeStorage().liquidatePosition(_id, _positionKey, _requestKey, msg.sender);
+        tradeStorage.liquidatePosition(_id, _positionKey, _requestKey, msg.sender);
     }
 
     function cancelOrderRequest(MarketId _id, bytes32 _key, bool _isLimit)
@@ -267,7 +267,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         isValidMarket(_id)
         nonReentrant
     {
-        market.tradeStorage().executeAdl(_id, _positionKey, _requestKey, msg.sender);
+        tradeStorage.executeAdl(_id, _positionKey, _requestKey, msg.sender);
     }
 
     /// @dev - Should only be callable from the TradeEngine associated with a valid market

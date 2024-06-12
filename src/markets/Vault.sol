@@ -125,7 +125,7 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
                     }
                 } else {
                     uint256 availableTokens = shortTokenBalance - shortTokensReserved;
-                    if (excess > shortTokenBalance - shortTokensReserved) {
+                    if (excess > availableTokens) {
                         shortTokenBalance = shortTokensReserved;
                         uint256 badDebtAccrued = excess - availableTokens;
                         badDebt[_isLong] += badDebtAccrued;

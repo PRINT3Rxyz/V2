@@ -374,7 +374,7 @@ library Position {
     {
         (, int256 nextFundingAccrued) = Funding.calculateNextFunding(_id, market, _position.ticker, _indexPrice);
 
-        return _position.size.toInt256().percentageInt(nextFundingAccrued - _position.fundingParams.lastFundingAccrued);
+        return _position.size.toInt256().percentageUsd(nextFundingAccrued - _position.fundingParams.lastFundingAccrued);
     }
 
     function getTotalBorrowFees(MarketId _id, IMarket market, Data memory _position, Execution.Prices memory _prices)

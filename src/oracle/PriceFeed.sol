@@ -167,6 +167,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         bool success = assetIds.add(assetId);
         if (!success) revert PriceFeed_AssetSupportFailed();
         strategies[_ticker] = _strategy;
+        tokenDecimals[_ticker] = _tokenDecimals;
         emit AssetSupported(_ticker, _tokenDecimals);
     }
 
@@ -293,12 +294,13 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
         if (!requestData.contains(requestId)) return;
 
+        bytes32 requestKey = idToKey[requestId];
+
         if (err.length > 0) {
             // If it errors, remove the request from storage
-            bytes32 requestKey = idToKey[requestId];
             requestData.remove(requestId);
-            delete idToKey[requestId];
             requestKeys.remove(requestKey);
+            delete idToKey[requestId];
             delete keyToId[requestKey];
             return;
         }
@@ -306,8 +308,9 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         RequestData memory data = requestData.get(requestId);
 
         if (!requestData.remove(requestId)) return;
-        requestKeys.remove(idToKey[requestId]);
+        requestKeys.remove(requestKey);
         delete idToKey[requestId];
+        delete keyToId[requestKey];
 
         if (data.requestType == RequestType.PRICE_UPDATE) {
             _decodeAndStorePrices(response);

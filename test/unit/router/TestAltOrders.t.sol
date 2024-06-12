@@ -500,25 +500,33 @@ contract TestAltOrders is Test {
             abi.encode(cumulatives)
         );
 
+        bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
+
+        IPriceFeed.RequestData memory requestData = priceFeed.getRequestData(requestKey);
+
+        requestData.requester = OWNER;
+
+        vm.mockCall(
+            address(priceFeed),
+            abi.encodeWithSelector(priceFeed.getRequestData.selector, requestKey),
+            abi.encode(requestData)
+        );
+
         // sign the new price
         _setPrices(uint64(_newPrice), 1);
 
         skip(30);
 
-        bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
         if (_isLong) {
             vm.assume(
-                MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 1e18, 3000e30, 1e18, true)
-                    > 0.45e18
+                MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 3000e30, 1e18, true) > 0.45e18
             );
             // ADL any one of the positions
             bytes32 positionKey = keccak256(abi.encode(ethTicker, OWNER, true));
             vm.prank(OWNER);
             positionManager.executeAdl(marketId, requestKey, positionKey);
         } else {
-            vm.assume(
-                MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 1e18, 1e30, 1e6, false) > 0.45e18
-            );
+            vm.assume(MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 1e30, 1e6, false) > 0.45e18);
             // ADL any one of the positions
             bytes32 positionKey = keccak256(abi.encode(ethTicker, OWNER, false));
             vm.prank(OWNER);

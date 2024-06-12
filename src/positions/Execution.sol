@@ -127,7 +127,6 @@ library Execution {
                     request.input.sizeDelta,
                     prices.indexPrice,
                     prices.collateralPrice,
-                    prices.indexBaseUnit,
                     request.input.isLong
                 );
             }
@@ -748,11 +747,11 @@ library Execution {
         uint256 _pnlToPoolRatio,
         bool _isLong
     ) private pure returns (uint256 impactedPrice) {
-        uint256 accelerationFactor = (_pnlToPoolRatio - TARGET_PNL_FACTOR).percentage(TARGET_PNL_FACTOR);
+        uint256 accelerationFactor = (_pnlToPoolRatio - TARGET_PNL_FACTOR).percentage(PRECISION, TARGET_PNL_FACTOR);
 
         uint256 pnlImpact = _pnlBeingRealized * accelerationFactor / PRECISION;
 
-        uint256 poolImpact = pnlImpact.percentage(_poolUsd);
+        uint256 poolImpact = pnlImpact.percentage(PRECISION, _poolUsd);
 
         if (poolImpact > PRECISION) poolImpact = PRECISION;
 
@@ -782,7 +781,6 @@ library Execution {
             vault,
             _ticker,
             _prices.indexPrice,
-            _prices.indexBaseUnit,
             _prices.collateralPrice,
             _prices.collateralBaseUnit,
             _isLong

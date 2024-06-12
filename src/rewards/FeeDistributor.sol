@@ -72,8 +72,8 @@ contract FeeDistributor is ReentrancyGuard, OwnableRoles {
         accumulatedFees[vault].lastDistributionTime = block.timestamp;
 
         // Set the Tokens per interval (week) for WETH and USDC
-        accumulatedFees[vault].wethTokensPerInterval = _wethAmount + wethRemaining / SECONDS_PER_WEEK;
-        accumulatedFees[vault].usdcTokensPerInterval = _usdcAmount + usdcRemaining / SECONDS_PER_WEEK;
+        accumulatedFees[vault].wethTokensPerInterval = (_wethAmount + wethRemaining) / SECONDS_PER_WEEK;
+        accumulatedFees[vault].usdcTokensPerInterval = (_usdcAmount + usdcRemaining) / SECONDS_PER_WEEK;
         // Emit an event
         emit FeesAccumulated(vault, _wethAmount, _usdcAmount);
     }

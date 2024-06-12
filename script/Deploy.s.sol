@@ -316,7 +316,9 @@ contract Deploy is Script {
             5 minutes
         );
         contracts.priceFeed.setEncryptedSecretUrls(encryptedSecretsUrls);
-        OwnableRoles(address(contracts.priceFeed)).grantRoles(address(contracts.marketFactory), _ROLE_0);
+        if (!activeNetworkConfig.mockFeed) {
+            OwnableRoles(address(contracts.priceFeed)).grantRoles(address(contracts.marketFactory), _ROLE_0);
+        }
 
         contracts.market.initialize(
             address(contracts.tradeStorage), address(contracts.priceFeed), address(contracts.marketFactory)

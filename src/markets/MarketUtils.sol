@@ -397,14 +397,11 @@ library MarketUtils {
         return newAverageEntryPrice;
     }
 
-    function getMarketPnl(
-        MarketId _id,
-        address _market,
-        string memory _ticker,
-        uint256 _indexPrice,
-        uint256 _indexBaseUnit,
-        bool _isLong
-    ) public view returns (int256 netPnl) {
+    function getMarketPnl(MarketId _id, address _market, string memory _ticker, uint256 _indexPrice, bool _isLong)
+        public
+        view
+        returns (int256 netPnl)
+    {
         IMarket market = IMarket(_market);
 
         uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
@@ -415,12 +412,10 @@ library MarketUtils {
 
         int256 priceDelta = _indexPrice.diff(averageEntryPrice);
 
-        uint256 entryIndexAmount = openInterest.fromUsd(averageEntryPrice, _indexBaseUnit);
-
         if (_isLong) {
-            netPnl = priceDelta.mulDivSigned(entryIndexAmount.toInt256(), _indexBaseUnit.toInt256());
+            netPnl = priceDelta.mulDivSigned(openInterest.toInt256(), averageEntryPrice.toInt256());
         } else {
-            netPnl = -priceDelta.mulDivSigned(entryIndexAmount.toInt256(), _indexBaseUnit.toInt256());
+            netPnl = -priceDelta.mulDivSigned(openInterest.toInt256(), averageEntryPrice.toInt256());
         }
     }
 
@@ -456,11 +451,10 @@ library MarketUtils {
         uint256 _sizeDeltaUsd,
         uint256 _indexPrice,
         uint256 _collateralTokenPrice,
-        uint256 _indexBaseUnit,
         bool _isLong
     ) internal view {
         uint256 availableUsd =
-            getAvailableOiUsd(_id, market, vault, _ticker, _indexPrice, _collateralTokenPrice, _indexBaseUnit, _isLong);
+            getAvailableOiUsd(_id, market, vault, _ticker, _indexPrice, _collateralTokenPrice, _isLong);
 
         if (_sizeDeltaUsd > availableUsd) revert MarketUtils_MaxOiExceeded();
     }
@@ -472,7 +466,6 @@ library MarketUtils {
         string memory _ticker,
         uint256 _indexPrice,
         uint256 _collateralTokenPrice,
-        uint256 _indexBaseUnit,
         bool _isLong
     ) internal view returns (uint256 availableOi) {
         uint256 collateralBaseUnit = _isLong ? LONG_BASE_UNIT : SHORT_BASE_UNIT;
@@ -483,7 +476,7 @@ library MarketUtils {
         availableOi =
             remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, market, _ticker));
 
-        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _indexBaseUnit, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _isLong);
 
         // if the pnl is positive, subtract it from the available oi
         if (pnl > 0) {
@@ -522,7 +515,6 @@ library MarketUtils {
         IVault vault,
         string memory _ticker,
         uint256 _indexPrice,
-        uint256 _indexBaseUnit,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
@@ -533,7 +525,7 @@ library MarketUtils {
             return 0;
         }
 
-        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _indexBaseUnit, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _isLong);
 
         uint256 factor = pnl.abs().divWadUp(poolUsd);
 

@@ -128,9 +128,9 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         if (!state.assetIds.add(assetId)) revert Market_FailedToAddAssetId();
         state.tickers.push(_ticker);
 
-        _reallocate(_id, _newAllocations, _priceRequestKey);
-
         Pool.initialize(marketStorage[_id][assetId], _config);
+
+        _reallocate(_id, _newAllocations, _priceRequestKey);
     }
 
     function removeToken(MarketId _id, string memory _ticker, bytes calldata _newAllocations, bytes32 _priceRequestKey)

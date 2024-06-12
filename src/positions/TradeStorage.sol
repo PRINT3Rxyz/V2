@@ -24,9 +24,6 @@ import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
 contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
 
-    uint8 private constant MAX_TIME_TO_EXPIRATION = 3 minutes;
-    uint8 private constant MIN_TIME_TO_EXPIRATION = 20 seconds;
-
     bool initialized;
 
     uint64 public minCancellationTime;

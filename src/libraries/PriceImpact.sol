@@ -71,25 +71,11 @@ library PriceImpact {
 
         if (_request.input.isLong) {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id,
-                market,
-                vault,
-                _request.input.ticker,
-                _prices.indexPrice,
-                _prices.longMarketTokenPrice,
-                _prices.indexBaseUnit,
-                true
+                _id, market, vault, _request.input.ticker, _prices.indexPrice, _prices.longMarketTokenPrice, true
             ).toInt256();
         } else {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id,
-                market,
-                vault,
-                _request.input.ticker,
-                _prices.indexPrice,
-                _prices.shortMarketTokenPrice,
-                _prices.indexBaseUnit,
-                false
+                _id, market, vault, _request.input.ticker, _prices.indexPrice, _prices.shortMarketTokenPrice, false
             ).toInt256();
         }
 
