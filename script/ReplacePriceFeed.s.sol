@@ -73,10 +73,9 @@ contract ReplacePriceFeed is Script {
         "return arr;";
     // Inline entire file -> Update File for Chain
     string cumulativePnlSource = 'const ethers = await import("npm:ethers@6.10.0");'
-        'const { Buffer } = await import("node:buffer");' "// Replace with Market for Chain"
-        'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";' "// Replace With Market Utils for Chain"
-        'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";' "// Replace with Price Feed for Chain"
-        'const PRICE_FEED = "0x4e6D2BbA749BE535C7AC1C2124060504E7801291";'
+        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";'
+        'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";'
+        'const PRICE_FEED = "0x4C3C29132894f2fB032242E52fb16B5A1ede5A04";'
         "const PRECISION_DIVISOR = 10000000000000000000000000000n;" "const MARKET_ABI = [" "  {" '    type: "function",'
         '    name: "getTickers",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
         '    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],' '    stateMutability: "view",' "  },"
@@ -145,6 +144,8 @@ contract ReplacePriceFeed is Script {
     bytes public encryptedSecretsUrls =
         hex"50225c593c3142d7097ed73d01e76e8403a61945b3385dda1f5cc171f9c2f193f102fc1aee84ff9127d4813f63b8bfc2eef78704bc45735473152ee9c5af0b010f09c01fa7fb76693985382a0285315c05fc961266b03038f290373e3c5b011b59c6cbe51aef414f39f14d712f404ef894b57b44c13a809de86eaeea2792dcb06a6fb8fa22352a6ee86a26f2b82e076c6b78d7ccde693bba23d838e538f4d1d79f";
 
+    /// IMPORTANT -> NEED TO REPLACE CHAINLINK FUNCTIONS, AS HARD-CODED ADDRESSES WILL NEED TO
+    /// BE SWITCHED TO THE NEW PRICE-FEED ETC.
     function run() public {
         vm.startBroadcast();
 

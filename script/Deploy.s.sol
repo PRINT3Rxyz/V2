@@ -47,7 +47,6 @@ contract Deploy is Script {
     uint256 internal constant _ROLE_5 = 1 << 5;
     uint256 internal constant _ROLE_6 = 1 << 6;
 
-    // Inline entire file
     string priceUpdateSource = 'const { Buffer } = await import("node:buffer");'
         "const timestamp = Number(args[0]);" 'const tickers = args.slice(1).join(",");' "if (!secrets.API_KEY) {"
         '  throw new Error("Missing COINMARKETCAP_API_KEY");' "}" "const currentTime = Math.floor(Date.now() / 1000);"
@@ -88,13 +87,11 @@ contract Deploy is Script {
         "const arr = new Uint8Array(finalHexStr.length / 2);" "for (let i = 0; i < arr.length; i++) {"
         "  arr[i] = parseInt(finalHexStr.slice(i * 2, i * 2 + 2), 16);" "}" 'console.log("Return Hooray!!! ", arr);'
         "return arr;";
-
     // Inline entire file -> Update File for Chain
     string cumulativePnlSource = 'const ethers = await import("npm:ethers@6.10.0");'
-        'const { Buffer } = await import("node:buffer");' "// Replace with Market for Chain"
-        'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";' "// Replace With Market Utils for Chain"
-        'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";' "// Replace with Price Feed for Chain"
-        'const PRICE_FEED = "0x4e6D2BbA749BE535C7AC1C2124060504E7801291";'
+        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";'
+        'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";'
+        'const PRICE_FEED = "0x4C3C29132894f2fB032242E52fb16B5A1ede5A04";'
         "const PRECISION_DIVISOR = 10000000000000000000000000000n;" "const MARKET_ABI = [" "  {" '    type: "function",'
         '    name: "getTickers",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
         '    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],' '    stateMutability: "view",' "  },"

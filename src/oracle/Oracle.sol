@@ -236,7 +236,7 @@ library Oracle {
             unwrappedMarketId := marketId
         }
 
-        args[1] = unwrappedMarketId.fromSmallString();
+        args[1] = unwrappedMarketId.toHexString();
     }
 
     /**

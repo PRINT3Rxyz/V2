@@ -75,6 +75,21 @@ library LibString {
         }
     }
 
+    // Helper function to convert bytes32 to hexadecimal string
+    function toHexString(bytes32 data) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+
+        bytes memory str = new bytes(64);
+        for (uint256 i = 0; i < 32;) {
+            str[i * 2] = alphabet[uint8(data[i] >> 4)];
+            str[1 + i * 2] = alphabet[uint8(data[i] & 0x0f)];
+            unchecked {
+                ++i;
+            }
+        }
+        return string(abi.encodePacked("0x", str));
+    }
+
     /// @dev Returns a string from a small bytes32 string.
     /// `s` must be null-terminated, or behavior will be undefined.
     function fromSmallString(bytes32 s) internal pure returns (string memory result) {

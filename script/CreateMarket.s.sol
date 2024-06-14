@@ -9,7 +9,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 
 contract CreateMarket is Script {
     MarketFactory public marketFactory = MarketFactory(0xac5CccF314Db6f3310039484bDf14F774664d4D2);
-    PriceFeed public priceFeed = PriceFeed(0x4e6D2BbA749BE535C7AC1C2124060504E7801291);
+    PriceFeed public priceFeed = PriceFeed(0x4C3C29132894f2fB032242E52fb16B5A1ede5A04);
 
     function run() public {
         uint256 requestCost = marketFactory.marketCreationFee() + Oracle.estimateRequestCost(priceFeed);
