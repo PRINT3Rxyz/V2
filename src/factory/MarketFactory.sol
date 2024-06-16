@@ -142,6 +142,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         priceFeed = _priceFeed;
     }
 
+    function updateTradeEngine(address _tradeEngine) external onlyOwner {
+        tradeEngine = ITradeEngine(_tradeEngine);
+    }
+
     function updateMarketFees(uint256 _marketCreationFee, uint256 _marketExecutionFee, uint256 _priceSupportFee)
         external
         onlyOwner
@@ -247,6 +251,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         return requests.keys();
     }
 
+    function getMarketIds() external view returns (bytes32[] memory) {
+        return marketIds.values();
+    }
+
     /**
      * =========================================== Private Functions ===========================================
      */
@@ -261,10 +269,14 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         priceFeed.requestPriceUpdate{value: _priceUpdateFee}(args, msg.sender);
     }
 
-    // @audit - If token decimals are fetched from uniswap and differ from 18, it will cause issues.
-    // If someone attempts to use a different asset, other than an ERC20 it might cause issues.
     function _initializeMarketContracts(Request memory _params) private returns (MarketId id) {
-        priceFeed.supportAsset(_params.input.indexTokenTicker, _params.input.strategy, DECIMALS);
+        // Fetch Decimals from Uniswap if possible --> if decimals are returned, use those, otherwise use default decimals
+        uint256 decimals = DECIMALS;
+        if (uint8(_params.input.strategy.feedType) > 1) {
+            decimals =
+                Oracle._getDecimalsFromPoolAddress(_params.input.strategy.feedType, _params.input.strategy.feedAddress);
+        }
+        priceFeed.supportAsset(_params.input.indexTokenTicker, _params.input.strategy, uint8(decimals));
 
         // Generate Market Id
         id = _params.input.toId();

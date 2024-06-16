@@ -28,9 +28,11 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     event AdlExecuted(address indexed market, bytes32 indexed positionKey, uint256 sizeDelta, bool isLong);
     event LiquidatePosition(bytes32 indexed positionKey, address indexed liquidator, bool isLong);
     event CollateralEdited(bytes32 indexed positionKey, uint256 collateralDelta, bool isIncrease);
-    event PositionCreated(bytes32 indexed positionKey, address indexed owner, address indexed market, bool isLong);
-    event IncreasePosition(bytes32 indexed positionKey, uint256 collateralDelta, uint256 sizeDelta);
-    event DecreasePosition(bytes32 indexed positionKey, uint256 collateralDelta, uint256 sizeDelta);
+    event PositionCreated(
+        bytes32 indexed positionKey, address indexed owner, bytes32 marketId, uint256 sizeDelta, bool isLong
+    );
+    event IncreasePosition(bytes32 indexed positionKey, bytes32 marketId, uint256 collateralDelta, uint256 sizeDelta);
+    event DecreasePosition(bytes32 indexed positionKey, bytes32 marketId, uint256 collateralDelta, uint256 sizeDelta);
 
     error TradeEngine_InvalidRequestType();
     error TradeEngine_PositionDoesNotExist();
@@ -229,7 +231,9 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             _params.feeReceiver
         );
 
-        emit PositionCreated(positionKey, position.user, address(market), position.isLong);
+        emit PositionCreated(
+            positionKey, position.user, MarketId.unwrap(_id), _params.request.input.sizeDelta, position.isLong
+        );
     }
 
     function _increasePosition(
@@ -269,7 +273,9 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             _params.feeReceiver
         );
 
-        emit IncreasePosition(positionKey, _params.request.input.collateralDelta, _params.request.input.sizeDelta);
+        emit IncreasePosition(
+            positionKey, MarketId.unwrap(_id), _params.request.input.collateralDelta, _params.request.input.sizeDelta
+        );
     }
 
     function _decreasePosition(
@@ -326,7 +332,9 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             );
         }
 
-        emit DecreasePosition(positionKey, _params.request.input.collateralDelta, _params.request.input.sizeDelta);
+        emit DecreasePosition(
+            positionKey, MarketId.unwrap(_id), _params.request.input.collateralDelta, _params.request.input.sizeDelta
+        );
     }
 
     function _handleLiquidation(

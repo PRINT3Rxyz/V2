@@ -33,11 +33,12 @@ interface IPriceFeed {
 
     enum FeedType {
         CHAINLINK,
+        PYTH,
         UNI_V30, // Uniswap V3 token0
         UNI_V31, // Uniswap V3 token1
         UNI_V20, // Uniswap V2 token0
-        UNI_V21, // Uniswap V2 token1
-        PYTH
+        UNI_V21 // Uniswap V2 token1
+
     }
 
     struct Price {

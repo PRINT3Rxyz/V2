@@ -76,6 +76,11 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         isInitialized = true;
     }
 
+    function replaceTradeEngine(address _previousTradeEngine, address _newTradeEngine) external onlyOwner {
+        revokeRoles(_previousTradeEngine, _ROLE_6);
+        _grantRoles(_newTradeEngine, _ROLE_6);
+    }
+
     /**
      * =========================================== Storage Functions ===========================================
      */

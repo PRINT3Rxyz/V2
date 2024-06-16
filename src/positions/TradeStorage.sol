@@ -68,8 +68,8 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         priceFeed = _priceFeed;
     }
 
-    function updateTradeEngine(ITradeEngine _tradeEngine) external onlyOwner {
-        tradeEngine = _tradeEngine;
+    function updateTradeEngine(address _tradeEngine) external onlyOwner {
+        tradeEngine = ITradeEngine(_tradeEngine);
     }
 
     // Time until a position request can be cancelled by a user

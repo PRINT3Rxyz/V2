@@ -431,6 +431,28 @@ library Oracle {
         if (price == 0) revert Oracle_InvalidReferenceQuery();
     }
 
+    function _getDecimalsFromPoolAddress(IPriceFeed.FeedType _feedType, address _feedAddress)
+        internal
+        view
+        returns (uint256 decimals)
+    {
+        if (_feedType == IPriceFeed.FeedType.UNI_V30 || _feedType == IPriceFeed.FeedType.UNI_V31) {
+            IUniswapV3Pool pool = IUniswapV3Pool(_feedAddress);
+            address token;
+            _feedType == IPriceFeed.FeedType.UNI_V30 ? token = pool.token0() : token = pool.token1();
+            bool success;
+            (success, decimals) = _tryGetAssetDecimals(IERC20(token));
+            if (!success) revert Oracle_InvalidAmmDecimals();
+        } else {
+            IUniswapV2Pair pair = IUniswapV2Pair(_feedAddress);
+            address token;
+            _feedType == IPriceFeed.FeedType.UNI_V20 ? token = pair.token0() : token = pair.token1();
+            bool success;
+            (success, decimals) = _tryGetAssetDecimals(IERC20(token));
+            if (!success) revert Oracle_InvalidAmmDecimals();
+        }
+    }
+
     function _getUniswapV3Price(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {
         if (_strategy.feedType != IPriceFeed.FeedType.UNI_V30 && _strategy.feedType != IPriceFeed.FeedType.UNI_V31) {
             revert Oracle_InvalidReferenceQuery();
