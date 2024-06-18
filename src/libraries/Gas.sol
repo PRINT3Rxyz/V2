@@ -42,7 +42,7 @@ library Gas {
 
         uint256 estimatedFee;
         (estimatedFee, priceUpdateFee) =
-            estimateExecutionFee(priceFeed, positionManager, _action, _hasPnlRequest, _isLimit);
+            _estimateExecutionFee(priceFeed, positionManager, _action, _hasPnlRequest, _isLimit);
 
         if (_executionFee < estimatedFee + priceUpdateFee) {
             revert Gas_InsufficientExecutionFee(_executionFee, estimatedFee);
@@ -59,22 +59,34 @@ library Gas {
         amountForExecutor = (_executionFee - refundAmount).percentage(CANCELLATION_REWARD);
     }
 
-    function estimateExecutionFee(
+    function getExecutionFees(
+        address _priceFeed,
+        address _positionManager,
+        uint8 _action,
+        bool _hasPnlRequest,
+        bool _isLimit
+    ) external view returns (uint256 estimatedCost, uint256 priceUpdateCost) {
+        return _estimateExecutionFee(
+            IPriceFeed(_priceFeed), IPositionManager(_positionManager), Action(_action), _hasPnlRequest, _isLimit
+        );
+    }
+
+    /**
+     * =========================================== Private Functions ===========================================
+     */
+    function _estimateExecutionFee(
         IPriceFeed priceFeed,
         IPositionManager positionManager,
         Action _action,
         bool _hasPnlRequest,
         bool _isLimit
-    ) public view returns (uint256 estimatedCost, uint256 priceUpdateCost) {
+    ) private view returns (uint256 estimatedCost, uint256 priceUpdateCost) {
         uint256 actionCost = _getActionCost(positionManager, _action);
 
         priceUpdateCost = _getPriceUpdateCost(priceFeed, _hasPnlRequest, _isLimit);
 
         estimatedCost = (actionCost + priceUpdateCost).percentage(BUFFER_PERCENTAGE);
     }
-    /**
-     * =========================================== Private Functions ===========================================
-     */
 
     function _getActionCost(IPositionManager positionManager, Action _action) private view returns (uint256) {
         if (_action == Action.DEPOSIT) {
