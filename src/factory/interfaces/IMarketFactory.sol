@@ -56,7 +56,6 @@ interface IMarketFactory {
         address _priceFeed,
         address _referralStorage,
         address _positionManager,
-        address _router,
         address _feeDistributor,
         address _feeReceiver,
         uint256 _marketCreationFee,

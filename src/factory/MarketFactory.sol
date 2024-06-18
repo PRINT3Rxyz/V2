@@ -45,7 +45,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     IFeeDistributor feeDistributor;
     IGlobalRewardTracker rewardTracker;
     IPositionManager positionManager;
-    address router;
 
     IPyth private pyth;
     IUniswapV2Factory private uniV2Factory;
@@ -100,7 +99,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         address _priceFeed,
         address _referralStorage,
         address _positionManager,
-        address _router,
         address _feeDistributor,
         address _feeReceiver,
         uint256 _marketCreationFee,
@@ -114,7 +112,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         referralStorage = IReferralStorage(_referralStorage);
         feeDistributor = IFeeDistributor(_feeDistributor);
         positionManager = IPositionManager(_positionManager);
-        router = _router;
         defaultConfig = _defaultConfig;
         feeReceiver = _feeReceiver;
         marketCreationFee = _marketCreationFee;
