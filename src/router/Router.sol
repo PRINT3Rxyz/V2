@@ -234,12 +234,8 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         if (_conditionals.stopLossSet && _conditionals.takeProfitSet) {
             action = Gas.Action.POSITION_WITH_LIMITS;
-            // Adjust the Execution Fee to a per-order basis (3x requests)
-            _trade.executionFee /= 3;
         } else if (_conditionals.stopLossSet || _conditionals.takeProfitSet) {
             action = Gas.Action.POSITION_WITH_LIMIT;
-            // Adjust the Execution Fee to a per-order basis (2x requests)
-            _trade.executionFee /= 2;
         } else {
             action = Gas.Action.POSITION;
         }
@@ -247,6 +243,15 @@ contract Router is ReentrancyGuard, OwnableRoles {
         priceUpdateFee = Gas.validateExecutionFee(
             priceFeed, positionManager, _trade.executionFee, msg.value, action, false, _trade.isLimit
         );
+
+        // Has to be done after the total execution fee is validated for the determined action.
+        if (_conditionals.stopLossSet && _conditionals.takeProfitSet) {
+            // Adjust the Execution Fee to a per-order basis (3x requests)
+            _trade.executionFee /= 3;
+        } else if (_conditionals.stopLossSet || _conditionals.takeProfitSet) {
+            // Adjust the Execution Fee to a per-order basis (2x requests)
+            _trade.executionFee /= 2;
+        }
 
         _trade.executionFee -= uint64(priceUpdateFee);
 
