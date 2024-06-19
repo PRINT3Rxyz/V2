@@ -103,12 +103,48 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         _deleteOrder(_id, _orderKey, _isLimit);
     }
 
-    function setStopLoss(MarketId _id, bytes32 _stopLossKey, bytes32 _requestKey) external onlyRoles(_ROLE_3) {
-        tradeState[_id].orders[_requestKey].stopLossKey = _stopLossKey;
+    function setStopLoss(MarketId _id, Position.Request calldata _request, bytes32 _orderKey)
+        external
+        onlyRoles(_ROLE_3)
+        returns (bytes32 stopLossKey)
+    {
+        // Stop Loss is always Limit
+        EnumerableSetLib.Bytes32Set storage orderSet = tradeState[_id].limitOrderKeys;
+
+        // Create and store the stop loss order
+        stopLossKey = Position.generateOrderKey(_request);
+        if (orderSet.contains(stopLossKey)) revert TradeStorage_OrderAlreadyExists();
+
+        bool success = orderSet.add(stopLossKey);
+        if (!success) revert TradeStorage_OrderAdditionFailed();
+
+        // Attach the stop loss order to the existing Order
+        tradeState[_id].orders[_orderKey].stopLossKey = stopLossKey;
+
+        // Store the Stop Loss
+        tradeState[_id].orders[stopLossKey] = _request;
     }
 
-    function setTakeProfit(MarketId _id, bytes32 _takeProfitKey, bytes32 _requestKey) external onlyRoles(_ROLE_3) {
-        tradeState[_id].orders[_requestKey].takeProfitKey = _takeProfitKey;
+    function setTakeProfit(MarketId _id, Position.Request calldata _request, bytes32 _orderKey)
+        external
+        onlyRoles(_ROLE_3)
+        returns (bytes32 takeProfitKey)
+    {
+        // Take Profit is always Limit
+        EnumerableSetLib.Bytes32Set storage orderSet = tradeState[_id].limitOrderKeys;
+
+        // Create and store the Take Profit order
+        takeProfitKey = Position.generateOrderKey(_request);
+        if (orderSet.contains(takeProfitKey)) revert TradeStorage_OrderAlreadyExists();
+
+        bool success = orderSet.add(takeProfitKey);
+        if (!success) revert TradeStorage_OrderAdditionFailed();
+
+        // Attach the Take Profit order to the existing Order
+        tradeState[_id].orders[_orderKey].takeProfitKey = takeProfitKey;
+
+        // Store the Take Profit
+        tradeState[_id].orders[takeProfitKey] = _request;
     }
 
     function createOrder(MarketId _id, Position.Request memory _request)

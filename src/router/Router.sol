@@ -45,6 +45,8 @@ contract Router is ReentrancyGuard, OwnableRoles {
     event PositionRequestCreated(MarketId market, bytes32 indexed requestKey);
     event PriceUpdateRequested(bytes32 requestKey, string[] tickers, address requester);
     event PnlRequested(bytes32 requestKey, MarketId market, address requester);
+    event StopLossCreated(MarketId market, bytes32 indexed requestKey, bytes32 indexed stopLossKey);
+    event TakeProfitCreated(MarketId market, bytes32 indexed requestKey, bytes32 indexed takeProfitKey);
 
     error Router_InvalidOwner();
     error Router_InvalidAmountIn();
@@ -229,33 +231,31 @@ contract Router is ReentrancyGuard, OwnableRoles {
             if (_trade.collateralToken != address(USDC)) revert Router_InvalidTokenIn();
         }
 
+        // Cache the Total Execution Fee before it's manipulated
+        uint256 totalExecutionFee = _trade.executionFee;
+
         uint256 priceUpdateFee;
         Gas.Action action;
 
         if (_conditionals.stopLossSet && _conditionals.takeProfitSet) {
             action = Gas.Action.POSITION_WITH_LIMITS;
+            // Adjust the Execution Fee to a per-order basis (3x requests)
+            _trade.executionFee /= 3;
         } else if (_conditionals.stopLossSet || _conditionals.takeProfitSet) {
             action = Gas.Action.POSITION_WITH_LIMIT;
+            // Adjust the Execution Fee to a per-order basis (2x requests)
+            _trade.executionFee /= 2;
         } else {
             action = Gas.Action.POSITION;
         }
 
         priceUpdateFee = Gas.validateExecutionFee(
-            priceFeed, positionManager, _trade.executionFee, msg.value, action, false, _trade.isLimit
+            priceFeed, positionManager, totalExecutionFee, msg.value, action, false, _trade.isLimit
         );
-
-        // Has to be done after the total execution fee is validated for the determined action.
-        if (_conditionals.stopLossSet && _conditionals.takeProfitSet) {
-            // Adjust the Execution Fee to a per-order basis (3x requests)
-            _trade.executionFee /= 3;
-        } else if (_conditionals.stopLossSet || _conditionals.takeProfitSet) {
-            // Adjust the Execution Fee to a per-order basis (2x requests)
-            _trade.executionFee /= 2;
-        }
 
         _trade.executionFee -= uint64(priceUpdateFee);
 
-        if (_trade.isIncrease) _handleTokenTransfers(_trade);
+        if (_trade.isIncrease) _handleTokenTransfers(_trade, totalExecutionFee);
 
         // Request Price Update for the Asset if Market Order
         // Limit Orders, Stop Loss, and Take Profit Order's prices will be updated at execution time
@@ -286,7 +286,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
             if (_conditionals.takeProfitSet) _createTakeProfit(_id, tradeStorage, request, _conditionals, orderKey);
         }
 
-        _sendExecutionFee(_trade.executionFee);
+        _sendExecutionFee(totalExecutionFee - priceUpdateFee);
 
         emit PositionRequestCreated(_id, orderKey);
     }
@@ -417,10 +417,10 @@ contract Router is ReentrancyGuard, OwnableRoles {
         _request.input.triggerAbove = _request.input.isLong ? false : true;
         _request.requestType = Position.RequestType.STOP_LOSS;
 
-        bytes32 stopLossKey = tradeStorage.createOrder(_id, _request);
-        tradeStorage.setStopLoss(_id, stopLossKey, _requestKey);
+        // Set and Store the Stop Loss
+        bytes32 stopLossKey = tradeStorage.setStopLoss(_id, _request, _requestKey);
 
-        tradeStorage.createOrderRequest(_id, _request);
+        emit StopLossCreated(_id, _requestKey, stopLossKey);
     }
 
     function _createTakeProfit(
@@ -442,18 +442,17 @@ contract Router is ReentrancyGuard, OwnableRoles {
         _request.input.triggerAbove = _request.input.isLong ? true : false;
         _request.requestType = Position.RequestType.TAKE_PROFIT;
 
-        bytes32 takeProfitKey = tradeStorage.createOrder(_id, _request);
+        // Set and Store the Take Profit
+        bytes32 takeProfitKey = tradeStorage.setTakeProfit(_id, _request, _requestKey);
 
-        tradeStorage.setTakeProfit(_id, takeProfitKey, _requestKey);
-
-        tradeStorage.createOrderRequest(_id, _request);
+        emit TakeProfitCreated(_id, _requestKey, takeProfitKey);
     }
 
-    function _handleTokenTransfers(Position.Input memory _trade) private {
+    function _handleTokenTransfers(Position.Input memory _trade, uint256 _totalExecutionFee) private {
         if (_trade.reverseWrap) {
             if (_trade.collateralToken != address(WETH)) revert Router_InvalidCollateralToken();
 
-            if (_trade.collateralDelta != msg.value - _trade.executionFee) revert Router_InvalidAmountInForWrap();
+            if (_trade.collateralDelta != msg.value - _totalExecutionFee) revert Router_InvalidAmountInForWrap();
 
             WETH.deposit{value: _trade.collateralDelta}();
             WETH.safeTransfer(address(positionManager), _trade.collateralDelta);

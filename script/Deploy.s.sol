@@ -314,6 +314,7 @@ contract Deploy is Script {
         contracts.priceFeed.setEncryptedSecretUrls(encryptedSecretsUrls);
         if (!activeNetworkConfig.mockFeed) {
             OwnableRoles(address(contracts.priceFeed)).grantRoles(address(contracts.marketFactory), _ROLE_0);
+            OwnableRoles(address(contracts.priceFeed)).grantRoles(address(contracts.router), _ROLE_3);
         }
 
         contracts.market.initialize(

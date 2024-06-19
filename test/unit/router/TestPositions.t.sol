@@ -830,6 +830,291 @@ contract TestPositions is Test {
         assertNotEq(borrowFees, 0, "Borrow Fees Are 0");
     }
 
+    function test_creating_stop_losses_with_new_positions(
+        uint256 _sizeDelta,
+        uint256 _leverage,
+        uint256 _stopLossPercentage,
+        uint256 _stopLossPrice,
+        bool _isLong,
+        bool _shouldWrap
+    ) public setUpMarkets {
+        // Create Request
+        Position.Input memory input;
+        _leverage = bound(_leverage, 2, 90);
+        _stopLossPercentage = bound(_stopLossPercentage, 1, 1e18);
+        if (_isLong) {
+            _sizeDelta = bound(_sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_sizeDelta / _leverage, 1e18, 3000e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: weth,
+                collateralDelta: collateralDelta,
+                sizeDelta: _sizeDelta,
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: true,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: _shouldWrap,
+                triggerAbove: false
+            });
+            if (_shouldWrap) {
+                vm.prank(OWNER);
+                router.createPositionRequest{value: collateralDelta + 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(true, false, uint64(_stopLossPercentage), 0, _stopLossPrice, 0)
+                );
+            } else {
+                vm.startPrank(OWNER);
+                WETH(weth).approve(address(router), type(uint256).max);
+                router.createPositionRequest{value: 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(true, false, uint64(_stopLossPercentage), 0, _stopLossPrice, 0)
+                );
+                vm.stopPrank();
+            }
+        } else {
+            _sizeDelta = bound(_sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_sizeDelta / _leverage, 1e6, 1e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: usdc,
+                collateralDelta: collateralDelta,
+                sizeDelta: _sizeDelta, // 10x leverage
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: false,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: false,
+                triggerAbove: false
+            });
+
+            vm.startPrank(OWNER);
+            MockUSDC(usdc).approve(address(router), type(uint256).max);
+            router.createPositionRequest{value: 0.01 ether}(
+                marketId, input, Position.Conditionals(true, false, uint64(_stopLossPercentage), 0, _stopLossPrice, 0)
+            );
+            vm.stopPrank();
+        }
+        // Execute Request
+        bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
+        vm.prank(OWNER);
+        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+
+        bytes32 stopLossKey =
+            tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _isLong))).stopLossKey;
+
+        // Check Stop Loss
+        assertNotEq(stopLossKey, bytes32(0), "Stop Loss Key Not Set");
+    }
+
+    function test_creating_take_profits_with_new_positions(
+        uint256 _sizeDelta,
+        uint256 _leverage,
+        uint256 _takeProfitPercentage,
+        uint256 _takeProfitPrice,
+        bool _isLong,
+        bool _shouldWrap
+    ) public setUpMarkets {
+        // Create Request
+        Position.Input memory input;
+        _leverage = bound(_leverage, 2, 90);
+        _takeProfitPercentage = bound(_takeProfitPercentage, 1, 1e18);
+        if (_isLong) {
+            _sizeDelta = bound(_sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_sizeDelta / _leverage, 1e18, 3000e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: weth,
+                collateralDelta: collateralDelta,
+                sizeDelta: _sizeDelta,
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: true,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: _shouldWrap,
+                triggerAbove: false
+            });
+            if (_shouldWrap) {
+                vm.prank(OWNER);
+                router.createPositionRequest{value: collateralDelta + 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(false, true, 0, uint64(_takeProfitPercentage), 0, _takeProfitPrice)
+                );
+            } else {
+                vm.startPrank(OWNER);
+                WETH(weth).approve(address(router), type(uint256).max);
+                router.createPositionRequest{value: 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(false, true, 0, uint64(_takeProfitPercentage), 0, _takeProfitPrice)
+                );
+                vm.stopPrank();
+            }
+        } else {
+            _sizeDelta = bound(_sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_sizeDelta / _leverage, 1e6, 1e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: usdc,
+                collateralDelta: collateralDelta,
+                sizeDelta: _sizeDelta, // 10x leverage
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: false,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: false,
+                triggerAbove: false
+            });
+
+            vm.startPrank(OWNER);
+            MockUSDC(usdc).approve(address(router), type(uint256).max);
+            router.createPositionRequest{value: 0.01 ether}(
+                marketId,
+                input,
+                Position.Conditionals(false, true, 0, uint64(_takeProfitPercentage), 0, _takeProfitPrice)
+            );
+            vm.stopPrank();
+        }
+        // Execute Request
+        bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
+        vm.prank(OWNER);
+        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+
+        bytes32 takeProfitKey =
+            tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _isLong))).takeProfitKey;
+
+        // Check Take Profit
+        assertNotEq(takeProfitKey, bytes32(0), "Take Profit Key Not Set");
+    }
+
+    struct Params {
+        uint256 sizeDelta;
+        uint256 leverage;
+        uint256 stopLossPercentage;
+        uint256 takeProfitPercentage;
+        uint256 stopLossPrice;
+        uint256 takeProfitPrice;
+        bool isLong;
+        bool shouldWrap;
+    }
+
+    function test_creating_stop_loss_and_take_profit_with_new_positions(Params memory _params) public setUpMarkets {
+        // Create Request
+        Position.Input memory input;
+        _params.leverage = bound(_params.leverage, 2, 90);
+        _params.takeProfitPercentage = bound(_params.takeProfitPercentage, 1, 1e18);
+        _params.stopLossPercentage = bound(_params.stopLossPercentage, 1, 1e18);
+        if (_params.isLong) {
+            _params.sizeDelta = bound(_params.sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_params.sizeDelta / _params.leverage, 1e18, 3000e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: weth,
+                collateralDelta: collateralDelta,
+                sizeDelta: _params.sizeDelta,
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: true,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: _params.shouldWrap,
+                triggerAbove: false
+            });
+            if (_params.shouldWrap) {
+                vm.prank(OWNER);
+                router.createPositionRequest{value: collateralDelta + 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(
+                        true,
+                        true,
+                        uint64(_params.stopLossPercentage),
+                        uint64(_params.takeProfitPercentage),
+                        _params.stopLossPrice,
+                        _params.takeProfitPrice
+                    )
+                );
+            } else {
+                vm.startPrank(OWNER);
+                WETH(weth).approve(address(router), type(uint256).max);
+                router.createPositionRequest{value: 0.01 ether}(
+                    marketId,
+                    input,
+                    Position.Conditionals(
+                        true,
+                        true,
+                        uint64(_params.stopLossPercentage),
+                        uint64(_params.takeProfitPercentage),
+                        _params.stopLossPrice,
+                        _params.takeProfitPrice
+                    )
+                );
+                vm.stopPrank();
+            }
+        } else {
+            _params.sizeDelta = bound(_params.sizeDelta, 210e30, 1_000_000e30);
+            uint256 collateralDelta = MathUtils.mulDiv(_params.sizeDelta / _params.leverage, 1e6, 1e30);
+            input = Position.Input({
+                ticker: ethTicker,
+                collateralToken: usdc,
+                collateralDelta: collateralDelta,
+                sizeDelta: _params.sizeDelta, // 10x leverage
+                limitPrice: 0,
+                maxSlippage: 0.3e30,
+                executionFee: 0.01 ether,
+                isLong: false,
+                isLimit: false,
+                isIncrease: true,
+                reverseWrap: false,
+                triggerAbove: false
+            });
+
+            vm.startPrank(OWNER);
+            MockUSDC(usdc).approve(address(router), type(uint256).max);
+            router.createPositionRequest{value: 0.01 ether}(
+                marketId,
+                input,
+                Position.Conditionals(
+                    true,
+                    true,
+                    uint64(_params.stopLossPercentage),
+                    uint64(_params.takeProfitPercentage),
+                    _params.stopLossPrice,
+                    _params.takeProfitPrice
+                )
+            );
+            vm.stopPrank();
+        }
+        // Execute Request
+        bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
+        vm.prank(OWNER);
+        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+
+        bytes32 stopLossKey =
+            tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _params.isLong))).stopLossKey;
+
+        bytes32 takeProfitKey =
+            tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _params.isLong))).takeProfitKey;
+
+        // Check Take Profit
+        assertNotEq(takeProfitKey, bytes32(0), "Take Profit Key Not Set");
+
+        // Check Stop Loss
+        assertNotEq(stopLossKey, bytes32(0), "Stop Loss Key Not Set");
+    }
+
     function _updatePriceFeeds() private {
         timestamps[0] = uint48(block.timestamp);
         timestamps[1] = uint48(block.timestamp);
