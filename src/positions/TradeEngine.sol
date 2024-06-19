@@ -25,14 +25,30 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     using Units for uint256;
     using Casting for int256;
 
-    event AdlExecuted(address indexed market, bytes32 indexed positionKey, uint256 sizeDelta, bool isLong);
-    event LiquidatePosition(bytes32 indexed positionKey, address indexed liquidator, bool isLong);
-    event CollateralEdited(bytes32 indexed positionKey, uint256 collateralDelta, bool isIncrease);
-    event PositionCreated(
-        bytes32 indexed positionKey, address indexed owner, bytes32 marketId, uint256 sizeDelta, bool isLong
+    event AdlExecuted(bytes32 indexed positionKey, bytes32 indexed marketId, uint256 sizeDelta, bool isLong);
+    event LiquidatePosition(bytes32 indexed positionKey, bytes32 indexed marketId, address liquidator, bool isLong);
+    event CollateralEdited(
+        bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, bool isIncrease
     );
-    event IncreasePosition(bytes32 indexed positionKey, bytes32 marketId, uint256 collateralDelta, uint256 sizeDelta);
-    event DecreasePosition(bytes32 indexed positionKey, bytes32 marketId, uint256 collateralDelta, uint256 sizeDelta);
+    event PositionCreated(
+        bytes32 indexed positionKey, bytes32 indexed marketId, address owner, uint256 sizeDelta, bool isLong
+    );
+    event IncreasePosition(
+        bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, uint256 sizeDelta
+    );
+    event DecreasePosition(
+        bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, uint256 sizeDelta
+    );
+    event ClosePosition(
+        bytes32 indexed positionKey,
+        bytes32 indexed marketId,
+        string ticker,
+        uint256 size,
+        uint256 collateral,
+        uint256 avgEntryPrice,
+        uint256 exitPrice,
+        bool isLong
+    );
 
     error TradeEngine_InvalidRequestType();
     error TradeEngine_PositionDoesNotExist();
@@ -157,7 +173,9 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             _id, market, vault, prices, startingPnlFactor, params.request.input.ticker, params.request.input.isLong
         );
 
-        emit AdlExecuted(address(market), _positionKey, params.request.input.sizeDelta, params.request.input.isLong);
+        emit AdlExecuted(
+            _positionKey, MarketId.unwrap(_id), params.request.input.sizeDelta, params.request.input.isLong
+        );
     }
 
     function liquidatePosition(MarketId _id, bytes32 _positionKey, bytes32 _requestKey, address _liquidator)
@@ -187,7 +205,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         _decreasePosition(_id, vault, params, prices);
 
-        emit LiquidatePosition(_positionKey, _liquidator, position.isLong);
+        emit LiquidatePosition(_positionKey, MarketId.unwrap(_id), _liquidator, position.isLong);
     }
 
     /**
@@ -232,7 +250,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         );
 
         emit PositionCreated(
-            positionKey, position.user, MarketId.unwrap(_id), _params.request.input.sizeDelta, position.isLong
+            positionKey, MarketId.unwrap(_id), position.user, _params.request.input.sizeDelta, position.isLong
         );
     }
 
@@ -328,7 +346,14 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             );
         } else {
             _handlePositionDecrease(
-                _id, vault, position, feeState, positionKey, _params.feeReceiver, _params.request.input.reverseWrap
+                _id,
+                vault,
+                position,
+                feeState,
+                positionKey,
+                _params.feeReceiver,
+                _prices.indexPrice,
+                _params.request.input.reverseWrap
             );
         }
 
@@ -401,6 +426,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         Execution.FeeState memory _feeState,
         bytes32 _positionKey,
         address _executor,
+        uint256 _indexPrice,
         bool _reverseWrap
     ) private {
         _accumulateFees(_id, vault, _feeState, _position.isLong);
@@ -410,6 +436,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         if (_position.size == 0 || _position.collateral == 0) {
             tradeStorage.deletePosition(_id, _positionKey, _position.isLong);
             _deleteAssociatedOrders(_id, _position.stopLossKey, _position.takeProfitKey);
+            _closePositionEvent(_id, _positionKey, _position, _indexPrice);
         } else {
             tradeStorage.updatePosition(_id, _position, _positionKey);
         }
@@ -553,5 +580,20 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     function _deleteAssociatedOrders(MarketId _id, bytes32 _stopLossKey, bytes32 _takeProfitKey) private {
         if (_stopLossKey != bytes32(0)) tradeStorage.deleteOrder(_id, _stopLossKey, true);
         if (_takeProfitKey != bytes32(0)) tradeStorage.deleteOrder(_id, _takeProfitKey, true);
+    }
+
+    function _closePositionEvent(MarketId _id, bytes32 _positionKey, Position.Data memory _position, uint256 _exitPrice)
+        private
+    {
+        emit ClosePosition(
+            _positionKey,
+            MarketId.unwrap(_id),
+            _position.ticker,
+            _position.size,
+            _position.collateral,
+            _position.weightedAvgEntryPrice,
+            _exitPrice,
+            _position.isLong
+        );
     }
 }
