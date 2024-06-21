@@ -51,7 +51,7 @@ library Oracle {
     string private constant SHORT_TICKER = "USDC";
     uint8 private constant PRICE_DECIMALS = 30;
     uint8 private constant CHAINLINK_DECIMALS = 8;
-    uint8 private constant MAX_STRATEGY = 5;
+    uint8 private constant MAX_STRATEGY = 1;
     uint16 private constant MAX_VARIANCE = 10_000;
     uint64 private constant MAX_PRICE_DEVIATION = 0.1e18;
     uint64 private constant OVERESTIMATION_FACTOR = 0.1e18;

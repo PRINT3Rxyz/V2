@@ -40,10 +40,10 @@ library Funding {
     ) internal {
         int256 nextSkew = _calculateNextSkew(_id, market, _ticker, _sizeDelta, _isLong);
 
+        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _ticker, _indexPrice);
+
         pool.fundingRateVelocity =
             getCurrentVelocity(market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale).toInt64();
-
-        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _ticker, _indexPrice);
     }
 
     function calculateNextFunding(MarketId _id, IMarket market, string calldata _ticker, uint256 _indexPrice)

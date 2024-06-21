@@ -372,7 +372,9 @@ library MarketUtils {
     }
 
     /**
-     * WAEP = ∑(Position Size in USD) / ∑(Entry Price in USD * Position Size in USD)
+     * WAEP calculation is designed to preserve a position's PNL.
+     *
+     * waep = (size + sizeDelta) / ((previousSize / previousPrice) + (sizeDelta / nextPrice))
      */
     function calculateWeightedAverageEntryPrice(
         uint256 _prevAverageEntryPrice,
@@ -388,11 +390,12 @@ library MarketUtils {
         }
 
         // Increasing position size
-        uint256 newPositionSize = _prevPositionSize + _sizeDelta.abs();
+        uint256 numerator = _prevPositionSize + _sizeDelta.abs();
 
-        uint256 numerator = (_prevAverageEntryPrice * _prevPositionSize) + (_indexPrice * _sizeDelta.abs());
+        uint256 denominator =
+            (_prevPositionSize.divWad(_prevAverageEntryPrice)) + (_sizeDelta.abs().divWad(_indexPrice));
 
-        uint256 newAverageEntryPrice = numerator / newPositionSize;
+        uint256 newAverageEntryPrice = numerator.divWad(denominator);
 
         return newAverageEntryPrice;
     }
