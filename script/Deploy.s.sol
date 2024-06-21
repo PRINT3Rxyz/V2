@@ -197,7 +197,6 @@ contract Deploy is Script {
                 activeNetworkConfig.contracts.weth,
                 activeNetworkConfig.contracts.link,
                 activeNetworkConfig.contracts.uniV3SwapRouter,
-                activeNetworkConfig.contracts.uniV3Factory,
                 activeNetworkConfig.subId,
                 activeNetworkConfig.donId,
                 activeNetworkConfig.contracts.chainlinkRouter
@@ -209,7 +208,6 @@ contract Deploy is Script {
                 activeNetworkConfig.contracts.weth,
                 activeNetworkConfig.contracts.link,
                 activeNetworkConfig.contracts.uniV3SwapRouter,
-                activeNetworkConfig.contracts.uniV3Factory,
                 activeNetworkConfig.subId,
                 activeNetworkConfig.donId,
                 activeNetworkConfig.contracts.chainlinkRouter
@@ -291,11 +289,7 @@ contract Deploy is Script {
             0.005 ether
         );
 
-        contracts.marketFactory.setFeedValidators(
-            activeNetworkConfig.contracts.pyth,
-            activeNetworkConfig.contracts.uniV2Factory,
-            activeNetworkConfig.contracts.uniV3Factory
-        );
+        contracts.marketFactory.setFeedValidators(activeNetworkConfig.contracts.pyth);
 
         contracts.marketFactory.setRewardTracker(address(contracts.rewardTracker));
 

@@ -201,7 +201,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         (Execution.FeeState memory feeState, Position.Request memory request) =
             tradeStorage.executePositionRequest(_id, _orderKey, _requestKey, _feeReceiver);
 
-        emit ExecutePosition(_orderKey, feeState.positionFee, feeState.affiliateRebate);
+        emit ExecutePosition(MarketId.unwrap(_id), _orderKey, feeState.positionFee, feeState.affiliateRebate);
 
         uint256 executionCost = (initialGas - gasleft()) * tx.gasprice;
 

@@ -5,10 +5,6 @@ import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
 import {IMarket} from "../markets/interfaces/IMarket.sol";
 import {IChainlinkFeed} from "./interfaces/IChainlinkFeed.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
-import {IUniswapV3Pool} from "./interfaces/IUniswapV3Pool.sol";
-import {IUniswapV2Pair} from "./interfaces/IUniswapV2Pair.sol";
-import {IUniswapV3Factory} from "./interfaces/IUniswapV3Factory.sol";
-import {IUniswapV2Factory} from "./interfaces/IUniswapV2Factory.sol";
 import {MerkleProofLib} from "../libraries/MerkleProofLib.sol";
 import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {PythStructs} from "@pyth/contracts/PythStructs.sol";
@@ -92,63 +88,6 @@ library Oracle {
         AggregatorV2V3Interface chainlinkFeed = AggregatorV2V3Interface(_feedAddress);
         int256 signedPrice = chainlinkFeed.latestAnswer();
         if (signedPrice == 0) revert Oracle_InvalidSecondaryStrategy();
-    }
-
-    function isValidUniswapV3Pool(
-        IUniswapV3Factory factory,
-        address _poolAddress,
-        IPriceFeed.FeedType _feedType,
-        bytes32[] calldata _merkleProof,
-        bytes32 _merkleRoot
-    ) internal view {
-        IUniswapV3Pool pool = IUniswapV3Pool(_poolAddress);
-
-        address token0 = pool.token0();
-        address token1 = pool.token1();
-
-        address expectedPoolAddress = factory.getPool(token0, token1, pool.fee());
-
-        if (expectedPoolAddress != _poolAddress) revert Oracle_InvalidSecondaryStrategy();
-
-        // The pair must contain a stablecoin within the Merkle Tree whitelist
-        if (_feedType == IPriceFeed.FeedType.UNI_V30) {
-            bytes32 leaf = keccak256(abi.encodePacked(token1));
-            if (!MerkleProofLib.verify(_merkleProof, _merkleRoot, leaf)) {
-                revert Oracle_InvalidSecondaryStrategy();
-            }
-        } else {
-            bytes32 leaf = keccak256(abi.encodePacked(token0));
-            if (!MerkleProofLib.verify(_merkleProof, _merkleRoot, leaf)) {
-                revert Oracle_InvalidSecondaryStrategy();
-            }
-        }
-    }
-
-    function isValidUniswapV2Pool(
-        IUniswapV2Factory factory,
-        address _poolAddress,
-        IPriceFeed.FeedType _feedType,
-        bytes32[] calldata _merkleProof,
-        bytes32 _merkleRoot
-    ) internal view {
-        IUniswapV2Pair pair = IUniswapV2Pair(_poolAddress);
-
-        address expectedPoolAddress = factory.getPair(pair.token0(), pair.token1());
-
-        if (expectedPoolAddress != _poolAddress) revert Oracle_InvalidSecondaryStrategy();
-
-        // The pair must contain a stablecoin within the Merkle Tree whitelist
-        if (_feedType == IPriceFeed.FeedType.UNI_V20) {
-            bytes32 leaf = keccak256(abi.encodePacked(pair.token1()));
-            if (!MerkleProofLib.verify(_merkleProof, _merkleRoot, leaf)) {
-                revert Oracle_InvalidSecondaryStrategy();
-            }
-        } else {
-            bytes32 leaf = keccak256(abi.encodePacked(pair.token0()));
-            if (!MerkleProofLib.verify(_merkleProof, _merkleRoot, leaf)) {
-                revert Oracle_InvalidSecondaryStrategy();
-            }
-        }
     }
 
     // Try to fetch a price from the Pyth contract and ensure that it returns a non-zero value.
@@ -403,15 +342,7 @@ library Oracle {
      * =========================================== Reference Prices ===========================================
      */
 
-    /* ONLY EVER USED FOR REFERENCE PRICES: PRICES RETURNED MAY BE HIGH-LATENCY, OR MANIPULATABLE.  */
-
-    /**
-     * In order of most common to least common reference feeds to save on gas:
-     * - Chainlink
-     * - Pyth
-     * - Uniswap V3
-     * - Uniswap V2
-     */
+    /* ONLY EVER USED FOR REFERENCE PRICES.  */
     function _getReferencePrice(IPriceFeed priceFeed, string memory _ticker) private view returns (uint256 price) {
         IPriceFeed.SecondaryStrategy memory strategy = priceFeed.getSecondaryStrategy(_ticker);
         if (!strategy.exists) return 0;
@@ -419,97 +350,10 @@ library Oracle {
             price = _getChainlinkPrice(strategy);
         } else if (strategy.feedType == IPriceFeed.FeedType.PYTH) {
             price = _getPythPrice(strategy);
-        } else if (strategy.feedType == IPriceFeed.FeedType.UNI_V30 || strategy.feedType == IPriceFeed.FeedType.UNI_V31)
-        {
-            price = _getUniswapV3Price(strategy);
-        } else if (strategy.feedType == IPriceFeed.FeedType.UNI_V20 || strategy.feedType == IPriceFeed.FeedType.UNI_V21)
-        {
-            price = _getUniswapV2Price(strategy);
         } else {
             revert Oracle_InvalidReferenceQuery();
         }
         if (price == 0) revert Oracle_InvalidReferenceQuery();
-    }
-
-    function _getDecimalsFromPoolAddress(IPriceFeed.FeedType _feedType, address _feedAddress)
-        internal
-        view
-        returns (uint256 decimals)
-    {
-        if (_feedType == IPriceFeed.FeedType.UNI_V30 || _feedType == IPriceFeed.FeedType.UNI_V31) {
-            IUniswapV3Pool pool = IUniswapV3Pool(_feedAddress);
-            address token;
-            _feedType == IPriceFeed.FeedType.UNI_V30 ? token = pool.token0() : token = pool.token1();
-            bool success;
-            (success, decimals) = _tryGetAssetDecimals(IERC20(token));
-            if (!success) revert Oracle_InvalidAmmDecimals();
-        } else {
-            IUniswapV2Pair pair = IUniswapV2Pair(_feedAddress);
-            address token;
-            _feedType == IPriceFeed.FeedType.UNI_V20 ? token = pair.token0() : token = pair.token1();
-            bool success;
-            (success, decimals) = _tryGetAssetDecimals(IERC20(token));
-            if (!success) revert Oracle_InvalidAmmDecimals();
-        }
-    }
-
-    function _getUniswapV3Price(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {
-        if (_strategy.feedType != IPriceFeed.FeedType.UNI_V30 && _strategy.feedType != IPriceFeed.FeedType.UNI_V31) {
-            revert Oracle_InvalidReferenceQuery();
-        }
-        IUniswapV3Pool pool = IUniswapV3Pool(_strategy.feedAddress);
-        (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
-
-        address indexToken;
-        address stableToken;
-        if (_strategy.feedType == IPriceFeed.FeedType.UNI_V30) {
-            indexToken = pool.token0();
-            stableToken = pool.token1();
-        } else {
-            indexToken = pool.token1();
-            stableToken = pool.token0();
-        }
-
-        (bool successStable, uint256 stablecoinDecimals) = _tryGetAssetDecimals(IERC20(stableToken));
-        if (!successStable) revert Oracle_InvalidAmmDecimals();
-
-        uint256 baseUnit = 10 ** stablecoinDecimals;
-        UD60x18 numerator = ud(uint256(sqrtPriceX96)).powu(2).mul(ud(baseUnit));
-        UD60x18 denominator = ud(2).powu(192);
-
-        // Scale and return the price to 30 decimal places
-        price = unwrap(numerator.div(denominator)) * (10 ** (PRICE_DECIMALS - stablecoinDecimals));
-    }
-
-    function _getUniswapV2Price(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {
-        IUniswapV2Pair pair = IUniswapV2Pair(_strategy.feedAddress);
-        (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
-
-        address volatileToken;
-        address stablecoinToken;
-        if (_strategy.feedType == IPriceFeed.FeedType.UNI_V20) {
-            volatileToken = pair.token0();
-            stablecoinToken = pair.token1();
-        } else if (_strategy.feedType == IPriceFeed.FeedType.UNI_V21) {
-            volatileToken = pair.token1();
-            stablecoinToken = pair.token0();
-        } else {
-            revert Oracle_InvalidReferenceQuery();
-        }
-
-        (bool successVolatile, uint256 volatileDecimals) = _tryGetAssetDecimals(IERC20(volatileToken));
-        (bool successStable, uint256 stablecoinDecimals) = _tryGetAssetDecimals(IERC20(stablecoinToken));
-        if (!successVolatile || !successStable) revert Oracle_InvalidAmmDecimals();
-
-        if (_strategy.feedType == IPriceFeed.FeedType.UNI_V20) {
-            price = uint256(reserve1).mulDiv(
-                10 ** (PRICE_DECIMALS + volatileDecimals - stablecoinDecimals), uint256(reserve0)
-            );
-        } else {
-            price = uint256(reserve0).mulDiv(
-                10 ** (PRICE_DECIMALS + volatileDecimals - stablecoinDecimals), uint256(reserve1)
-            );
-        }
     }
 
     function _getChainlinkPrice(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {

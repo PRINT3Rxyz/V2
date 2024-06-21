@@ -7,7 +7,7 @@ import {IPriceFeed} from "../../oracle/interfaces/IPriceFeed.sol";
 import {MarketId} from "../../types/MarketId.sol";
 
 interface IPositionManager {
-    event ExecutePosition(bytes32 indexed _orderKey, uint256 _fee, uint256 _feeDiscount);
+    event ExecutePosition(bytes32 indexed marketId, bytes32 indexed _orderKey, uint256 _fee, uint256 _feeDiscount);
     event GasLimitsUpdated(
         uint256 indexed depositGasLimit, uint256 indexed withdrawalGasLimit, uint256 indexed positionGasLimit
     );

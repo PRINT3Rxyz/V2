@@ -23,22 +23,15 @@ interface IPriceFeed {
         bool exists;
         // What type of secondary strategy is it?
         FeedType feedType;
-        // What is the address of the secondary strategy? (Chainlink, Uniswap, etc.)
+        // What is the address of the secondary strategy? (Chainlink etc.)
         address feedAddress;
         // What is the feed ID of the secondary strategy? (Pyth)
         bytes32 feedId;
-        // Merkle Proof proving that the strategy provided is a whitelisted strategy.
-        bytes32[] merkleProof;
     }
 
     enum FeedType {
         CHAINLINK,
-        PYTH,
-        UNI_V30, // Uniswap V3 token0
-        UNI_V31, // Uniswap V3 token1
-        UNI_V20, // Uniswap V2 token0
-        UNI_V21 // Uniswap V2 token1
-
+        PYTH
     }
 
     struct Price {

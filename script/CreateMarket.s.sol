@@ -18,8 +18,7 @@ contract CreateMarket is Script {
             exists: true,
             feedType: IPriceFeed.FeedType.CHAINLINK,
             feedAddress: 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1,
-            feedId: bytes32(0),
-            merkleProof: new bytes32[](0)
+            feedId: bytes32(0)
         });
 
         IMarketFactory.Input memory input = IMarketFactory.Input({

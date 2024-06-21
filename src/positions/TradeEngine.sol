@@ -26,7 +26,15 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     using Casting for int256;
 
     event AdlExecuted(bytes32 indexed positionKey, bytes32 indexed marketId, uint256 sizeDelta, bool isLong);
-    event LiquidatePosition(bytes32 indexed positionKey, bytes32 indexed marketId, address liquidator, bool isLong);
+    event LiquidatePosition(
+        bytes32 indexed positionKey,
+        bytes32 indexed marketId,
+        string ticker,
+        uint256 averageEntryPrice,
+        uint256 liquidationPrice,
+        uint256 liquidatedCollateral,
+        bool isLong
+    );
     event CollateralEdited(
         bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, bool isIncrease
     );
@@ -205,7 +213,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         _decreasePosition(_id, vault, params, prices);
 
-        emit LiquidatePosition(_positionKey, MarketId.unwrap(_id), _liquidator, position.isLong);
+        _liquidatePositionEvent(_id, _positionKey, position, prices.indexPrice, params.request.input.collateralDelta);
     }
 
     /**
@@ -593,6 +601,24 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             _position.collateral,
             _position.weightedAvgEntryPrice,
             _exitPrice,
+            _position.isLong
+        );
+    }
+
+    function _liquidatePositionEvent(
+        MarketId _id,
+        bytes32 _positionKey,
+        Position.Data memory _position,
+        uint256 _liquidationPrice,
+        uint256 _liquidatedCollateral
+    ) private {
+        emit LiquidatePosition(
+            _positionKey,
+            MarketId.unwrap(_id),
+            _position.ticker,
+            _position.weightedAvgEntryPrice,
+            _liquidationPrice,
+            _liquidatedCollateral,
             _position.isLong
         );
     }

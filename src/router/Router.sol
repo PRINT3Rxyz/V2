@@ -40,13 +40,13 @@ contract Router is ReentrancyGuard, OwnableRoles {
     string private constant SHORT_TICKER = "USDC";
     uint64 private constant MAX_PERCENTAGE = 1e18;
 
-    event DepositRequestCreated(MarketId market, address owner, address tokenIn, uint256 amountIn);
-    event WithdrawalRequestCreated(MarketId market, address owner, address tokenOut, uint256 amountOut);
-    event PositionRequestCreated(MarketId market, bytes32 indexed requestKey);
+    event DepositRequestCreated(MarketId indexed marketId, address owner, address tokenIn, uint256 amountIn);
+    event WithdrawalRequestCreated(MarketId indexed marketId, address owner, address tokenOut, uint256 amountOut);
+    event PositionRequestCreated(MarketId indexed marketId, bytes32 indexed requestKey, bool _isLimit);
     event PriceUpdateRequested(bytes32 requestKey, string[] tickers, address requester);
-    event PnlRequested(bytes32 requestKey, MarketId market, address requester);
-    event StopLossCreated(MarketId market, bytes32 indexed requestKey, bytes32 indexed stopLossKey);
-    event TakeProfitCreated(MarketId market, bytes32 indexed requestKey, bytes32 indexed takeProfitKey);
+    event PnlRequested(bytes32 requestKey, MarketId indexed marketId, address requester);
+    event StopLossCreated(MarketId indexed marketId, bytes32 indexed requestKey, bytes32 indexed stopLossKey);
+    event TakeProfitCreated(MarketId indexed marketId, bytes32 indexed requestKey, bytes32 indexed takeProfitKey);
 
     error Router_InvalidOwner();
     error Router_InvalidAmountIn();
@@ -288,7 +288,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         _sendExecutionFee(totalExecutionFee - priceUpdateFee);
 
-        emit PositionRequestCreated(_id, orderKey);
+        emit PositionRequestCreated(_id, orderKey, _trade.isLimit);
     }
 
     /**

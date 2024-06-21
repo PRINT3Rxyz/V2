@@ -10,7 +10,6 @@ import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {IMarketFactory} from "../factory/interfaces/IMarketFactory.sol";
 import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
 import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
-import {IUniswapV3Factory} from "./interfaces/IUniswapV3Factory.sol";
 import {IWETH} from "../tokens/interfaces/IWETH.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
@@ -36,8 +35,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     uint8 private constant MAX_ARGS_LENGTH = 4;
 
     address public immutable UNISWAP_V3_ROUTER;
-
-    address public immutable UNISWAP_V3_FACTORY;
 
     address public immutable WETH;
 
@@ -92,7 +89,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         address _weth,
         address _link,
         address _uniV3Router,
-        address _uniV3Factory,
         uint64 _subId,
         bytes32 _donId,
         address _functionsRouter
@@ -102,7 +98,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         WETH = _weth;
         LINK = _link;
         UNISWAP_V3_ROUTER = _uniV3Router;
-        UNISWAP_V3_FACTORY = _uniV3Factory;
         subscriptionId = _subId;
         donId = _donId;
     }

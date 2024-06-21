@@ -562,7 +562,8 @@ library Position {
 
             if (pnl < 0) continue;
 
-            uint256 adlTargetScore = (position.size / _totalPoolSizeUsd) * (pnl.abs() / position.size);
+            // Position Size terms cancel out
+            uint256 adlTargetScore = pnl.abs() / _totalPoolSizeUsd;
 
             if (adlTargetScore > highestAdlScore) {
                 highestAdlScore = adlTargetScore;

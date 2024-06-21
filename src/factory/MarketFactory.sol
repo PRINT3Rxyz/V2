@@ -5,8 +5,6 @@ import {IMarketFactory} from "./interfaces/IMarketFactory.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 import {IMarket} from "../markets/interfaces/IMarket.sol";
-import {IUniswapV3Factory} from "../oracle/interfaces/IUniswapV3Factory.sol";
-import {IUniswapV2Factory} from "../oracle/interfaces/IUniswapV2Factory.sol";
 import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {IVault} from "../markets/interfaces/IVault.sol";
 import {ITradeStorage} from "../positions/interfaces/ITradeStorage.sol";
@@ -47,8 +45,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     IPositionManager positionManager;
 
     IPyth private pyth;
-    IUniswapV2Factory private uniV2Factory;
-    IUniswapV3Factory private uniV3Factory;
 
     address private immutable WETH;
     address private immutable USDC;
@@ -76,9 +72,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     uint256 public marketCreationFee;
     uint256 public marketExecutionFee;
     uint256 public priceSupportFee;
-
-    // Stablecoin Address Whitelist for Uniswap V2 and V3 Pairs
-    bytes32 public stablecoinMerkleRoot;
 
     uint256 public cumulativeMarketIndex;
 
@@ -124,10 +117,8 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         rewardTracker = IGlobalRewardTracker(_rewardTracker);
     }
 
-    function setFeedValidators(address _pyth, address _uniV2Factory, address _uniV3Factory) external onlyOwner {
+    function setFeedValidators(address _pyth) external onlyOwner {
         pyth = IPyth(_pyth);
-        uniV2Factory = IUniswapV2Factory(_uniV2Factory);
-        uniV3Factory = IUniswapV3Factory(_uniV3Factory);
     }
 
     function setDefaultConfig(Pool.Config memory _defaultConfig) external onlyOwner {
@@ -150,12 +141,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         marketCreationFee = _marketCreationFee;
         marketExecutionFee = _marketExecutionFee;
         priceSupportFee = _priceSupportFee;
-    }
-
-    /// @dev - Merkle Trees used as whitelists for all valid Pyth Price Feed Ids and Stablecoin Addresses
-    /// These are used for feed validation w.r.t secondary strategies
-    function updateMerkleRoot(bytes32 _stablecoinMerkleRoot) external onlyOwner {
-        stablecoinMerkleRoot = _stablecoinMerkleRoot;
     }
 
     function updateFeeDistributor(address _feeDistributor) external onlyOwner {
@@ -267,12 +252,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     }
 
     function _initializeMarketContracts(Request memory _params) private returns (MarketId id) {
-        // Fetch Decimals from Uniswap if possible --> if decimals are returned, use those, otherwise use default decimals
         uint256 decimals = DECIMALS;
-        if (uint8(_params.input.strategy.feedType) > 1) {
-            decimals =
-                Oracle._getDecimalsFromPoolAddress(_params.input.strategy.feedType, _params.input.strategy.feedAddress);
-        }
         priceFeed.supportAsset(_params.input.indexTokenTicker, _params.input.strategy, uint8(decimals));
 
         // Generate Market Id
@@ -319,28 +299,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
             Oracle.isValidChainlinkFeed(_params.strategy.feedAddress);
         } else if (_params.strategy.feedType == IPriceFeed.FeedType.PYTH) {
             Oracle.isValidPythFeed(pyth, _params.strategy.feedId);
-        } else if (
-            _params.strategy.feedType == IPriceFeed.FeedType.UNI_V30
-                || _params.strategy.feedType == IPriceFeed.FeedType.UNI_V31
-        ) {
-            Oracle.isValidUniswapV3Pool(
-                uniV3Factory,
-                _params.strategy.feedAddress,
-                _params.strategy.feedType,
-                _params.strategy.merkleProof,
-                stablecoinMerkleRoot
-            );
-        } else if (
-            _params.strategy.feedType == IPriceFeed.FeedType.UNI_V20
-                || _params.strategy.feedType == IPriceFeed.FeedType.UNI_V21
-        ) {
-            Oracle.isValidUniswapV2Pool(
-                uniV2Factory,
-                _params.strategy.feedAddress,
-                _params.strategy.feedType,
-                _params.strategy.merkleProof,
-                stablecoinMerkleRoot
-            );
         } else {
             revert MarketFactory_InvalidSecondaryStrategy();
         }
@@ -358,12 +316,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     /// @dev Keys are determined by the hash of the ticker, to prevent overlapping requests
     function _getPriceRequestKey(string calldata _ticker) private pure returns (bytes32 requestKey) {
         return keccak256(abi.encodePacked(_ticker));
-    }
-
-    /// @dev No refunds. Fee is kept by the contract to incentivize requesters to play by the rules.
-    function _deleteInvalidRequest(bytes32 _requestKey) private {
-        if (!requests.contains(_requestKey)) revert MarketFactory_RequestDoesNotExist();
-        if (!requests.remove(_requestKey)) revert MarketFactory_FailedToRemoveRequest();
     }
 
     // Construct a Request struct from the Input

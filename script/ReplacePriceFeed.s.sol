@@ -150,7 +150,7 @@ contract ReplacePriceFeed is Script {
         vm.startBroadcast();
 
         IPriceFeed newPriceFeed =
-            new PriceFeed(address(marketFactory), weth, link, uniV3Router, uniV3Factory, subId, donId, functionsRouter);
+            new PriceFeed(address(marketFactory), weth, link, uniV3Router, subId, donId, functionsRouter);
 
         newPriceFeed.initialize(
             priceUpdateSource,

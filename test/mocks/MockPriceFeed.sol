@@ -9,7 +9,6 @@ import {EnumerableMap} from "../../../src/libraries/EnumerableMap.sol";
 import {IMarketFactory} from "../../../src/factory/interfaces/IMarketFactory.sol";
 import {IPriceFeed} from "../../../src/oracle/interfaces/IPriceFeed.sol";
 import {ISwapRouter} from "../../src/oracle/interfaces/ISwapRouter.sol";
-import {IUniswapV3Factory} from "../../src/oracle/interfaces/IUniswapV3Factory.sol";
 import {IWETH} from "../../src/tokens/interfaces/IWETH.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {Oracle} from "../../src/oracle/Oracle.sol";
@@ -33,8 +32,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     uint16 private constant MAX_DATA_LENGTH = 3296;
     // Uniswap V3 Router address on Network
     address public immutable UNISWAP_V3_ROUTER;
-    // Uniswap V3 Factory address on Network
-    address public immutable UNISWAP_V3_FACTORY;
     // WETH address on Network
     address public immutable WETH;
     // LINK address on Network
@@ -97,7 +94,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         address _weth,
         address _link,
         address _uniV3Router,
-        address _uniV3Factory,
         uint64 _subId,
         bytes32 _donId,
         address _router
@@ -106,7 +102,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         WETH = _weth;
         LINK = _link;
         UNISWAP_V3_ROUTER = _uniV3Router;
-        UNISWAP_V3_FACTORY = _uniV3Factory;
         subscriptionId = _subId;
         donId = _donId;
     }

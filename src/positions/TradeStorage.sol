@@ -233,7 +233,7 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         bool success = _isLimit ? state.limitOrderKeys.remove(_orderKey) : state.marketOrderKeys.remove(_orderKey);
         if (!success) revert TradeStorage_OrderRemovalFailed();
         delete state.orders[_orderKey];
-        emit OrderRequestCancelled(_orderKey);
+        emit OrderRequestCancelled(MarketId.unwrap(_id), _orderKey);
     }
 
     /// @dev Attaches a Conditional Order to a live Position
@@ -268,7 +268,7 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         return _isLimit ? tradeState[_id].limitOrderKeys.values() : tradeState[_id].marketOrderKeys.values();
     }
 
-    /// @notice - Get the position data for a given position key. Reverts if invalid.
+    /// @notice - Get the position data for a given position key.
     function getPosition(MarketId _id, bytes32 _positionKey) external view returns (Position.Data memory) {
         return tradeState[_id].openPositions[_positionKey];
     }
@@ -282,7 +282,7 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         return tradeState[_id].openPositions[positionKey];
     }
 
-    /// @notice - Get the request data for a given order key. Reverts if invalid.
+    /// @notice - Get the request data for a given order key.
     function getOrder(MarketId _id, bytes32 _orderKey) external view returns (Position.Request memory) {
         return tradeState[_id].orders[_orderKey];
     }

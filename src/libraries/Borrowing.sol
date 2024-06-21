@@ -123,7 +123,7 @@ library Borrowing {
 
         if (timeElapsed == 0) return 0;
 
-        pendingFees = borrowRate * timeElapsed;
+        pendingFees = borrowRate.percentage(timeElapsed, SECONDS_PER_DAY);
     }
 
     function calculateFeesSinceUpdate(uint256 _rate, uint256 _lastUpdate) public view returns (uint256 fee) {

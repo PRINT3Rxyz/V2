@@ -119,8 +119,7 @@ contract TestBorrowing is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         marketFactory.createNewMarket{value: 0.01 ether}(input);
@@ -411,7 +410,7 @@ contract TestBorrowing is Test {
         vm.roll(block.number + 1);
         // expected value
 
-        uint256 currentCumulative = _lastCumulative + (1000 * uint256(uint64(_borrowingRate)));
+        uint256 currentCumulative = _lastCumulative + (1000 * uint256(uint64(_borrowingRate)) / 86400);
 
         uint256 absSizeDelta = _sizeDelta < 0 ? uint256(-_sizeDelta) : uint256(_sizeDelta);
 

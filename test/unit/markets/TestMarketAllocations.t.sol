@@ -117,8 +117,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         marketFactory.createNewMarket{value: 0.01 ether}(input);
@@ -165,8 +164,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         vm.prank(OWNER);
@@ -219,8 +217,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         vm.prank(OWNER);
@@ -334,8 +331,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         vm.prank(OWNER);
@@ -391,8 +387,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         vm.prank(OWNER);
@@ -446,8 +441,7 @@ contract TestMarketAllocations is Test {
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
                 feedAddress: address(0),
-                feedId: bytes32(0),
-                merkleProof: new bytes32[](0)
+                feedId: bytes32(0)
             })
         });
         Pool.Config memory config = Pool.Config({

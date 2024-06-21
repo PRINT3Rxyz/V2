@@ -9,7 +9,7 @@ import {IVault} from "../../markets/interfaces/IVault.sol";
 import {MarketId, MarketIdLibrary} from "../../types/MarketId.sol";
 
 interface ITradeStorage {
-    event OrderRequestCancelled(bytes32 indexed _orderKey);
+    event OrderRequestCancelled(bytes32 indexed marketId, bytes32 indexed _orderKey);
 
     error TradeStorage_AlreadyInitialized();
     error TradeStorage_OrderAlreadyExists();
