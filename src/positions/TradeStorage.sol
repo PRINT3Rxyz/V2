@@ -147,14 +147,6 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         tradeState[_id].orders[takeProfitKey] = _request;
     }
 
-    function createOrder(MarketId _id, Position.Request memory _request)
-        external
-        onlyRoles(_ROLE_3)
-        returns (bytes32 orderKey)
-    {
-        tradeState[_id].orders[orderKey] = _request;
-    }
-
     /**
      * =========================================== Callback Functions ===========================================
      */

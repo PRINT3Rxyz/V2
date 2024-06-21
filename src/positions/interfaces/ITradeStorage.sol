@@ -54,7 +54,6 @@ interface ITradeStorage {
     function deleteOrder(MarketId _id, bytes32 _orderKey, bool _isLimit) external;
     function updatePosition(MarketId _id, Position.Data calldata _position, bytes32 _positionKey) external;
     function createPosition(MarketId _id, Position.Data calldata _position, bytes32 _positionKey) external;
-    function createOrder(MarketId _id, Position.Request memory _request) external returns (bytes32 orderKey);
     function setStopLoss(MarketId _id, Position.Request calldata _request, bytes32 _orderKey)
         external
         returns (bytes32);
