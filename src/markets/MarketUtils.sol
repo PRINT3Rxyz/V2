@@ -389,6 +389,9 @@ library MarketUtils {
             else return _prevAverageEntryPrice;
         }
 
+        // If no previous position, return the index price
+        if (_prevPositionSize == 0) return _indexPrice;
+
         // Increasing position size
         uint256 numerator = _prevPositionSize + _sizeDelta.abs();
 
