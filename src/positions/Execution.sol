@@ -842,9 +842,7 @@ library Execution {
                 || _params.request.input.collateralDelta.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit)
                     >= _position.collateral
         ) {
-            collateralDelta = _position.collateral.fromUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
             sizeDelta = _position.size;
-            isFullDecrease = true;
         } else if (_params.request.input.collateralDelta == 0) {
             // If no collateral delta specified, make it proportional with size delta
             collateralDelta = _position.collateral.percentage(_params.request.input.sizeDelta, _position.size).fromUsd(
@@ -854,6 +852,11 @@ library Execution {
         } else {
             collateralDelta = _params.request.input.collateralDelta;
             sizeDelta = _params.request.input.sizeDelta;
+        }
+
+        if (sizeDelta == _position.size) {
+            collateralDelta = _position.collateral.fromUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
+            isFullDecrease = true;
         }
     }
 
