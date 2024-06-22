@@ -163,6 +163,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         bool success = assetIds.add(assetId);
         if (!success) revert PriceFeed_AssetSupportFailed();
         strategies[_ticker] = _strategy;
+        tokenDecimals[_ticker] = _tokenDecimals;
         emit AssetSupported(_ticker, _tokenDecimals);
     }
 

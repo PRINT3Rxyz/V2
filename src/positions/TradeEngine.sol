@@ -62,6 +62,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     error TradeEngine_PositionDoesNotExist();
     error TradeEngine_InvalidCaller();
     error TradeEngine_AlreadyInitialized();
+    error TradeEngine_PositionNotLiquidatable();
 
     ITradeStorage tradeStorage;
     IMarket market;
@@ -202,6 +203,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         Execution.Prices memory prices =
             Execution.getTokenPrices(priceFeed, position.ticker, requestTimestamp, position.isLong, false);
+
+        if (!Execution.checkIsLiquidatable(_id, market, position, prices)) revert TradeEngine_PositionNotLiquidatable();
 
         // No price impact on Liquidations
         prices.impactedPrice = prices.indexPrice;

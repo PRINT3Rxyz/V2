@@ -16,6 +16,7 @@ import {Units} from "../libraries/Units.sol";
 import {LibString} from "../libraries/LibString.sol";
 import {ud, UD60x18, unwrap} from "@prb/math/UD60x18.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
+import {console2} from "forge-std/Test.sol";
 
 library Oracle {
     using MathUtils for uint256;
@@ -35,6 +36,7 @@ library Oracle {
     error Oracle_InvalidPriceRetrieval();
     error Oracle_InvalidSecondaryStrategy();
     error Oracle_RequestExpired();
+    error Oracle_FailedToGetDecimals();
 
     struct Prices {
         uint256 min;
@@ -275,6 +277,8 @@ library Oracle {
      * =========================================== Auxillary ===========================================
      */
     function getBaseUnit(IPriceFeed priceFeed, string memory _ticker) internal view returns (uint256 baseUnit) {
+        uint8 decimals = priceFeed.tokenDecimals(_ticker);
+        if (decimals == 0) revert Oracle_FailedToGetDecimals();
         baseUnit = 10 ** priceFeed.tokenDecimals(_ticker);
     }
 

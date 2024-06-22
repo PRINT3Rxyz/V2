@@ -12,6 +12,7 @@ import {Units} from "../libraries/Units.sol";
 import {MarketUtils} from "../markets/MarketUtils.sol";
 import {MathUtils} from "../libraries/MathUtils.sol";
 import {MarketId} from "../types/MarketId.sol";
+import {console2} from "forge-std/Test.sol";
 
 /// @dev Library containing all the data types used throughout the protocol
 library Position {
@@ -442,7 +443,11 @@ library Position {
     ) public pure returns (int256) {
         int256 priceDelta = _indexPrice.diff(_weightedAvgEntryPrice);
 
+        console2.log("Price Delta: ", priceDelta);
+
         uint256 entryIndexAmount = _positionSizeUsd.fromUsd(_weightedAvgEntryPrice, _indexBaseUnit);
+
+        console2.log("Entry Index Amount: ", entryIndexAmount);
 
         if (_isLong) {
             return priceDelta.mulDivSigned(entryIndexAmount.toInt256(), _indexBaseUnit.toInt256());

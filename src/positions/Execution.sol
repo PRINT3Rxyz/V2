@@ -20,6 +20,7 @@ import {ITradeEngine} from "./interfaces/ITradeEngine.sol";
 import {MathUtils} from "../libraries/MathUtils.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {MarketId} from "../types/MarketId.sol";
+import {console2} from "forge-std/Test.sol";
 
 // Library for Handling Trade related logic
 library Execution {
@@ -32,6 +33,7 @@ library Execution {
     error Execution_MinCollateralThreshold();
     error Execution_LiquidatablePosition();
     error Execution_FeesExceedCollateralDelta();
+    error Execution_FeesExceedCollateral();
     error Execution_LimitPriceNotMet(uint256 limitPrice, uint256 markPrice);
     error Execution_PnlToPoolRatioNotExceeded(int256 pnlFactor, uint256 maxPnlFactor);
     error Execution_PNLFactorNotReduced();
@@ -214,7 +216,7 @@ library Execution {
         uint256 collateralDeltaUsd =
             _params.request.input.collateralDelta.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
 
-        position = _updatePosition(position, collateralDeltaUsd, 0, _prices.impactedPrice, false);
+        position = _updatePositionForDecrease(position, collateralDeltaUsd, 0, _prices.impactedPrice);
 
         uint256 remainingCollateralUsd = position.collateral;
 
@@ -290,19 +292,37 @@ library Execution {
             _params.request.input.collateralDelta
         );
 
-        feeState.afterFeeAmount = _calculateAmountAfterFees(
-            _params.request.input.collateralDelta,
-            feeState.positionFee,
-            feeState.feeForExecutor,
-            feeState.affiliateRebate,
-            feeState.borrowFee,
-            feeState.fundingFee
-        );
+        uint256 totalFees =
+            feeState.positionFee + feeState.feeForExecutor + feeState.affiliateRebate + feeState.borrowFee;
+
+        if (feeState.fundingFee < 0) {
+            totalFees += feeState.fundingFee.abs();
+
+            // Set After Fee Amount as it's used to update state
+            // Name may be misleading, as fees are deducted from the actual position collateral, not collateral delta.
+            feeState.afterFeeAmount = _params.request.input.collateralDelta;
+        } else {
+            feeState.afterFeeAmount = _params.request.input.collateralDelta + feeState.fundingFee.abs();
+        }
 
         uint256 collateralDeltaUsd = feeState.afterFeeAmount.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
 
-        position =
-            _updatePosition(position, collateralDeltaUsd, _params.request.input.sizeDelta, _prices.impactedPrice, true);
+        position.collateral += collateralDeltaUsd;
+
+        if (position.collateral < totalFees) revert Execution_FeesExceedCollateral();
+
+        position.collateral -= totalFees;
+
+        position.lastUpdate = uint48(block.timestamp);
+
+        position.size += _params.request.input.sizeDelta;
+
+        position.weightedAvgEntryPrice = MarketUtils.calculateWeightedAverageEntryPrice(
+            position.weightedAvgEntryPrice,
+            position.size,
+            _params.request.input.sizeDelta.toInt256(),
+            _prices.impactedPrice
+        );
 
         Position.checkLeverage(_id, market, position.ticker, position.size, position.collateral);
     }
@@ -457,6 +477,8 @@ library Execution {
             _position.size, _position.weightedAvgEntryPrice, _prices.indexPrice, _prices.indexBaseUnit, _position.isLong
         );
 
+        console2.log("PNL: ", pnl);
+
         uint256 borrowingFeesUsd = Position.getTotalBorrowFeesUsd(_id, market, _position);
 
         int256 fundingFeesUsd = Position.getTotalFundingFees(_id, market, _position, _prices.indexPrice);
@@ -474,35 +496,22 @@ library Execution {
      * =========================================== Private Helper Functions ===========================================
      */
     /// @dev Applies all changes to an active position
-    function _updatePosition(
+    function _updatePositionForDecrease(
         Position.Data memory _position,
         uint256 _collateralDeltaUsd,
         uint256 _sizeDelta,
-        uint256 _impactedPrice,
-        bool _isIncrease
+        uint256 _impactedPrice
     ) private view returns (Position.Data memory) {
         _position.lastUpdate = uint48(block.timestamp);
 
-        if (_isIncrease) {
-            _position.collateral += _collateralDeltaUsd;
+        _position.collateral -= _collateralDeltaUsd;
 
-            if (_sizeDelta > 0) {
-                _position.weightedAvgEntryPrice = MarketUtils.calculateWeightedAverageEntryPrice(
-                    _position.weightedAvgEntryPrice, _position.size, _sizeDelta.toInt256(), _impactedPrice
-                );
+        if (_sizeDelta > 0) {
+            _position.weightedAvgEntryPrice = MarketUtils.calculateWeightedAverageEntryPrice(
+                _position.weightedAvgEntryPrice, _position.size, -_sizeDelta.toInt256(), _impactedPrice
+            );
 
-                _position.size += _sizeDelta;
-            }
-        } else {
-            _position.collateral -= _collateralDeltaUsd;
-
-            if (_sizeDelta > 0) {
-                _position.weightedAvgEntryPrice = MarketUtils.calculateWeightedAverageEntryPrice(
-                    _position.weightedAvgEntryPrice, _position.size, -_sizeDelta.toInt256(), _impactedPrice
-                );
-
-                _position.size -= _sizeDelta;
-            }
+            _position.size -= _sizeDelta;
         }
 
         return _position;
@@ -545,7 +554,7 @@ library Execution {
 
         (_position, _feeState.borrowFee) = _processBorrowFees(_id, market, _position, _prices);
 
-        (_position, _feeState.fundingFee) = _processFundingFees(_id, market, _position, _prices, _sizeDelta);
+        (_position, _feeState.fundingFee) = _processFundingFees(_id, market, _position, _prices, _position.size);
 
         return (_position, _feeState);
     }
@@ -665,12 +674,11 @@ library Execution {
             _feeState.fundingFee
         );
 
-        _position = _updatePosition(
+        _position = _updatePositionForDecrease(
             _position,
             _params.request.input.collateralDelta.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit),
             _params.request.input.sizeDelta,
-            _prices.impactedPrice,
-            false
+            _prices.impactedPrice
         );
 
         _feeState.afterFeeAmount = _feeState.realizedPnl > 0
@@ -821,7 +829,7 @@ library Execution {
 
         if (totalFees >= _collateralDelta) revert Execution_FeesExceedCollateralDelta();
 
-        afterFeeAmount = _collateralDelta - totalFees;
+        afterFeeAmount += _collateralDelta - totalFees;
     }
 
     function _validateCollateralDelta(
