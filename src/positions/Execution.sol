@@ -20,7 +20,6 @@ import {ITradeEngine} from "./interfaces/ITradeEngine.sol";
 import {MathUtils} from "../libraries/MathUtils.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {MarketId} from "../types/MarketId.sol";
-import {console2} from "forge-std/Test.sol";
 
 // Library for Handling Trade related logic
 library Execution {
@@ -477,7 +476,7 @@ library Execution {
             _position.size, _position.weightedAvgEntryPrice, _prices.indexPrice, _prices.indexBaseUnit, _position.isLong
         );
 
-        console2.log("PNL: ", pnl);
+        uint256 maintenanceCollateral = _getMaintenanceCollateral(_id, market, _position);
 
         uint256 borrowingFeesUsd = Position.getTotalBorrowFeesUsd(_id, market, _position);
 
@@ -485,7 +484,7 @@ library Execution {
 
         int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
 
-        if (losses < 0 && losses.abs() > _position.collateral) {
+        if (losses < 0 && losses.abs() > maintenanceCollateral) {
             isLiquidatable = true;
         } else {
             isLiquidatable = false;

@@ -16,7 +16,6 @@ import {Units} from "../libraries/Units.sol";
 import {LibString} from "../libraries/LibString.sol";
 import {ud, UD60x18, unwrap} from "@prb/math/UD60x18.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
-import {console2} from "forge-std/Test.sol";
 
 library Oracle {
     using MathUtils for uint256;
