@@ -22,8 +22,7 @@ contract ReplacePriceFeed is Script {
     address functionsRouter = 0xf9B8fc078197181C841c296C876945aaa425B278;
     address weth = 0xD8eca5111c93EEf563FAB704F2C6A8DD7A12c77D;
     address link = 0xE4aB69C077896252FAFBD49EFD26B5D171A32410;
-    address uniV3Router = 0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4;
-    address uniV3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+    address pyth = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
     address sequencerUptimeFeed = address(0);
     uint64 subId = 54;
     bytes32 donId = 0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000;
@@ -149,18 +148,10 @@ contract ReplacePriceFeed is Script {
     function run() public {
         vm.startBroadcast();
 
-        IPriceFeed newPriceFeed =
-            new PriceFeed(address(marketFactory), weth, link, uniV3Router, subId, donId, functionsRouter);
+        IPriceFeed newPriceFeed = new PriceFeed(address(marketFactory), weth, link, pyth, subId, donId, functionsRouter);
 
         newPriceFeed.initialize(
-            priceUpdateSource,
-            cumulativePnlSource,
-            185000,
-            300_000,
-            0.005 ether,
-            0xb113F5A928BCfF189C998ab20d753a47F9dE5A61,
-            sequencerUptimeFeed,
-            5 minutes
+            priceUpdateSource, cumulativePnlSource, 185000, 300_000, 0.005 ether, sequencerUptimeFeed, 5 minutes
         );
         newPriceFeed.setEncryptedSecretUrls(encryptedSecretsUrls);
         OwnableRoles(address(newPriceFeed)).grantRoles(address(marketFactory), _ROLE_0);

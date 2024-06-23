@@ -104,7 +104,7 @@ contract TestPositions is Test {
         vm.label(address(feeDistributor), "feeDistributor");
 
         OWNER = contracts.owner;
-        (weth, usdc, link,,,,,,) = deploy.helperContracts();
+        (weth, usdc, link,,,) = deploy.helperContracts();
         tickers.push(ethTicker);
         tickers.push(usdcTicker);
         // Pass some time so block timestamp isn't 0
@@ -114,16 +114,6 @@ contract TestPositions is Test {
 
     receive() external payable {}
 
-    /**
-     * Tests to do:
-     * - supporting assets
-     * - unsupporting assets
-     * - fee / capital flow
-     * - failed chainlink requests
-     * - decoding of prices and pnl
-     * - getter functions
-     * - fees e.g premium fee
-     */
     function test_supporting_an_asset_updates_state_correctly(
         uint256 _string,
         uint8 _randomDecimals,

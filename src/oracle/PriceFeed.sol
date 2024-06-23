@@ -33,8 +33,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     uint16 private constant MAX_DATA_LENGTH = 3296;
     uint8 private constant MAX_ARGS_LENGTH = 4;
 
-    address public immutable UNISWAP_V3_ROUTER;
-
     address public immutable WETH;
 
     address public immutable LINK;
@@ -44,6 +42,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
     // Don IDs: https://docs.chain.link/chainlink-functions/supported-networks
     bytes32 private donId;
+    address public pyth;
     address public sequencerUptimeFeed;
     bool private isInitialized;
     uint64 subscriptionId;
@@ -57,7 +56,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     //Callback gas limit
     uint256 public gasOverhead;
     uint256 public premiumFee;
-    address public nativeLinkPriceFeed;
     uint32 public callbackGasLimit;
     uint48 public timeToExpiration;
 
@@ -85,7 +83,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         address _marketFactory,
         address _weth,
         address _link,
-        address _uniV3Router,
+        address _pyth,
         uint64 _subId,
         bytes32 _donId,
         address _functionsRouter
@@ -94,7 +92,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         marketFactory = IMarketFactory(_marketFactory);
         WETH = _weth;
         LINK = _link;
-        UNISWAP_V3_ROUTER = _uniV3Router;
+        pyth = _pyth;
         subscriptionId = _subId;
         donId = _donId;
     }
@@ -105,7 +103,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
     ) external onlyOwner {
@@ -115,7 +112,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        nativeLinkPriceFeed = _nativeLinkPriceFeed;
         sequencerUptimeFeed = _sequencerUptimeFeed;
         timeToExpiration = _timeToExpiration;
         isInitialized = true;
@@ -126,15 +122,13 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         bytes32 _donId,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
-        uint256 _premiumFee,
-        address _nativeLinkPriceFeed
+        uint256 _premiumFee
     ) external onlyOwner {
         subscriptionId = _subId;
         donId = _donId;
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        nativeLinkPriceFeed = _nativeLinkPriceFeed;
     }
 
     function setEncryptedSecretUrls(bytes calldata _encryptedSecretsUrls) external onlyOwner {
@@ -169,7 +163,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         emit SupportRemoved(_ticker);
     }
 
-    function updateSequencerUptimeFeed(address _sequencerUptimeFeed) external onlyOwner {
+    function updateDataFeeds(address _pyth, address _sequencerUptimeFeed) external onlyOwner {
+        pyth = _pyth;
         sequencerUptimeFeed = _sequencerUptimeFeed;
     }
 

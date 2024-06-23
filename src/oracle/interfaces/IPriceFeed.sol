@@ -96,7 +96,6 @@ interface IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
     ) external;
@@ -108,8 +107,7 @@ interface IPriceFeed {
         bytes32 _donId,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
-        uint256 _premiumFee,
-        address _nativeLinkPriceFeed
+        uint256 _premiumFee
     ) external;
     function supportAsset(string memory _ticker, SecondaryStrategy calldata _strategy, uint8 _tokenDecimals) external;
     function unsupportAsset(string memory _ticker) external;
@@ -122,11 +120,11 @@ interface IPriceFeed {
     function priceUpdateRequested(bytes32 _requestId) external view returns (bool);
     function getRequestData(bytes32 _requestId) external view returns (RequestData memory);
     function getRequester(bytes32 _requestId) external view returns (address);
-    function nativeLinkPriceFeed() external view returns (address);
     function callbackGasLimit() external view returns (uint32);
     function gasOverhead() external view returns (uint256);
     function getRequestTimestamp(bytes32 _requestKey) external view returns (uint48);
     function timeToExpiration() external view returns (uint48);
     function isRequestValid(bytes32 _requestKey) external view returns (bool);
     function tokenDecimals(string memory _ticker) external view returns (uint8);
+    function pyth() external view returns (address);
 }

@@ -63,7 +63,7 @@ contract TestPositions is Test {
         Deploy deploy = new Deploy();
         Deploy.Contracts memory contracts = deploy.run();
 
-        (weth, usdc,,,,,,,) = deploy.helperContracts();
+        (weth, usdc,,,,) = deploy.helperContracts();
 
         marketFactory = contracts.marketFactory;
         vm.label(address(marketFactory), "marketFactory");
@@ -93,7 +93,7 @@ contract TestPositions is Test {
         vm.label(address(feeDistributor), "feeDistributor");
 
         OWNER = contracts.owner;
-        (weth, usdc,,,,,,,) = deploy.helperContracts();
+        (weth, usdc,,,,) = deploy.helperContracts();
         tickers.push(ethTicker);
         tickers.push(usdcTicker);
         // Pass some time so block timestamp isn't 0

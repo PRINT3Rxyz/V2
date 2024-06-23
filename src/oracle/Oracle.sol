@@ -55,7 +55,7 @@ library Oracle {
     uint16 private constant MAX_VARIANCE = 10_000;
     uint64 private constant MAX_PRICE_DEVIATION = 0.1e18;
     uint64 private constant OVERESTIMATION_FACTOR = 0.1e18;
-    uint64 private constant PREMIUM_FEE = 0.2e18; // 20%
+    uint64 private constant PREMIUM_FEE = 0.1e18; // 10%
 
     /**
      * =========================================== Validation Functions ===========================================
@@ -91,6 +91,8 @@ library Oracle {
     }
 
     // Try to fetch a price from the Pyth contract and ensure that it returns a non-zero value.
+    // It's possible pyth feeds are valid, but have never had a price signed.
+    // This case should be handled from front-ends.
     function isValidPythFeed(IPyth pyth, bytes32 _priceId) internal view {
         PythStructs.Price memory pythData = pyth.getPriceUnsafe(_priceId);
         if (pythData.price == 0) revert Oracle_InvalidSecondaryStrategy();
@@ -343,7 +345,7 @@ library Oracle {
         if (strategy.feedType == IPriceFeed.FeedType.CHAINLINK) {
             price = _getChainlinkPrice(strategy);
         } else if (strategy.feedType == IPriceFeed.FeedType.PYTH) {
-            price = _getPythPrice(strategy);
+            price = _getPythPrice(priceFeed.pyth(), strategy);
         } else {
             revert Oracle_InvalidReferenceQuery();
         }
@@ -361,25 +363,17 @@ library Oracle {
     }
 
     // Need the Pyth address and the bytes32 id for the ticker
-    function _getPythPrice(IPriceFeed.SecondaryStrategy memory _strategy) private view returns (uint256 price) {
+    function _getPythPrice(address _pythFeed, IPriceFeed.SecondaryStrategy memory _strategy)
+        private
+        view
+        returns (uint256 price)
+    {
         if (_strategy.feedType != IPriceFeed.FeedType.PYTH) revert Oracle_InvalidReferenceQuery();
         // Query the Pyth feed for the price
-        IPyth pythFeed = IPyth(_strategy.feedAddress);
+        IPyth pythFeed = IPyth(_pythFeed);
         PythStructs.Price memory pythData = pythFeed.getEmaPriceUnsafe(_strategy.feedId);
         // Expand the price to 30 d.p
         uint256 exponent = PRICE_DECIMALS - pythData.expo.abs();
         price = pythData.price.abs() * (10 ** exponent);
-    }
-
-    function _tryGetAssetDecimals(IERC20 _asset) private view returns (bool, uint256) {
-        (bool success, bytes memory encodedDecimals) =
-            address(_asset).staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
-        if (success && encodedDecimals.length >= 32) {
-            uint256 returnedDecimals = abi.decode(encodedDecimals, (uint256));
-            if (returnedDecimals <= type(uint8).max) {
-                return (true, uint8(returnedDecimals));
-            }
-        }
-        return (false, 0);
     }
 }

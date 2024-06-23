@@ -34,9 +34,6 @@ contract HelperConfig is IHelperConfig, Script {
         baseSepoliaConfig.contracts.weth = address(weth);
         baseSepoliaConfig.contracts.usdc = address(mockUsdc);
         baseSepoliaConfig.contracts.link = address(link);
-        baseSepoliaConfig.contracts.uniV3SwapRouter = 0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4;
-        baseSepoliaConfig.contracts.uniV3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-        baseSepoliaConfig.contracts.nativeLinkUsdFeed = 0xb113F5A928BCfF189C998ab20d753a47F9dE5A61;
 
         baseSepoliaConfig.contracts.pyth = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
         baseSepoliaConfig.subId = 54;
@@ -56,9 +53,6 @@ contract HelperConfig is IHelperConfig, Script {
         baseConfig.contracts.weth = 0x4200000000000000000000000000000000000006;
         baseConfig.contracts.usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
         baseConfig.contracts.link = 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196;
-        baseConfig.contracts.uniV3SwapRouter = 0x2626664c2603336E57B271c5C0b26F421741e481;
-        baseConfig.contracts.uniV3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
-        baseConfig.contracts.nativeLinkUsdFeed = 0x17CAb8FE31E32f08326e5E27412894e49B0f9D65;
 
         baseConfig.contracts.pyth = 0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a;
         baseConfig.subId = 54;
@@ -78,8 +72,7 @@ contract HelperConfig is IHelperConfig, Script {
         anvilConfig.contracts.weth = address(weth);
         anvilConfig.contracts.usdc = address(mockUsdc);
         anvilConfig.contracts.link = address(link);
-        anvilConfig.contracts.uniV3SwapRouter = address(0);
-        anvilConfig.contracts.uniV3Factory = address(0);
+
         anvilConfig.contracts.pyth = address(0);
         anvilConfig.subId = 0;
         anvilConfig.donId = keccak256(abi.encode("DON"));

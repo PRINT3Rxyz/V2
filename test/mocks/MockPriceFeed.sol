@@ -8,7 +8,6 @@ import {EnumerableSetLib} from "../../src/libraries/EnumerableSetLib.sol";
 import {EnumerableMap} from "../../../src/libraries/EnumerableMap.sol";
 import {IMarketFactory} from "../../../src/factory/interfaces/IMarketFactory.sol";
 import {IPriceFeed} from "../../../src/oracle/interfaces/IPriceFeed.sol";
-import {ISwapRouter} from "../../src/oracle/interfaces/ISwapRouter.sol";
 import {IWETH} from "../../src/tokens/interfaces/IWETH.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {Oracle} from "../../src/oracle/Oracle.sol";
@@ -30,8 +29,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     uint40 private constant MSB1 = 0x8000000000;
     uint64 private constant LINK_BASE_UNIT = 1e18;
     uint16 private constant MAX_DATA_LENGTH = 3296;
-    // Uniswap V3 Router address on Network
-    address public immutable UNISWAP_V3_ROUTER;
     // WETH address on Network
     address public immutable WETH;
     // LINK address on Network
@@ -42,6 +39,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
 
     // Don IDs: https://docs.chain.link/chainlink-functions/supported-networks
     bytes32 private donId;
+    address public pyth;
     address public sequencerUptimeFeed;
     uint64 subscriptionId;
     uint8 maxRetries;
@@ -58,7 +56,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     //Callback gas limit
     uint256 public gasOverhead;
     uint256 public premiumFee;
-    address public nativeLinkPriceFeed;
     uint32 public callbackGasLimit;
     uint48 public timeToExpiration;
 
@@ -92,7 +89,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         address _marketFactory,
         address _weth,
         address _link,
-        address _uniV3Router,
+        address _pyth,
         uint64 _subId,
         bytes32 _donId,
         address _router
@@ -100,7 +97,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         marketFactory = IMarketFactory(_marketFactory);
         WETH = _weth;
         LINK = _link;
-        UNISWAP_V3_ROUTER = _uniV3Router;
+        pyth = _pyth;
         subscriptionId = _subId;
         donId = _donId;
     }
@@ -111,7 +108,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
     ) external {
@@ -121,7 +117,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        nativeLinkPriceFeed = _nativeLinkPriceFeed;
         sequencerUptimeFeed = _sequencerUptimeFeed;
         timeToExpiration = _timeToExpiration;
         isInitialized = true;
@@ -136,15 +131,13 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         bytes32 _donId,
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
-        uint256 _premiumFee,
-        address _nativeLinkPriceFeed
+        uint256 _premiumFee
     ) external {
         subscriptionId = _subId;
         donId = _donId;
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        nativeLinkPriceFeed = _nativeLinkPriceFeed;
     }
 
     function setJavascriptSourceCode(string memory _priceUpdateSource, string memory _cumulativePnlSource) external {

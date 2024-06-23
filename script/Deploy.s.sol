@@ -196,7 +196,7 @@ contract Deploy is Script {
                 address(contracts.marketFactory),
                 activeNetworkConfig.contracts.weth,
                 activeNetworkConfig.contracts.link,
-                activeNetworkConfig.contracts.uniV3SwapRouter,
+                activeNetworkConfig.contracts.pyth,
                 activeNetworkConfig.subId,
                 activeNetworkConfig.donId,
                 activeNetworkConfig.contracts.chainlinkRouter
@@ -207,7 +207,7 @@ contract Deploy is Script {
                 address(contracts.marketFactory),
                 activeNetworkConfig.contracts.weth,
                 activeNetworkConfig.contracts.link,
-                activeNetworkConfig.contracts.uniV3SwapRouter,
+                activeNetworkConfig.contracts.pyth,
                 activeNetworkConfig.subId,
                 activeNetworkConfig.donId,
                 activeNetworkConfig.contracts.chainlinkRouter
@@ -300,7 +300,6 @@ contract Deploy is Script {
             185000,
             300_000,
             0.005 ether,
-            activeNetworkConfig.contracts.nativeLinkUsdFeed, // LINK USD BASE SEPOLIA
             activeNetworkConfig.contracts.sequencerUptimeFeed,
             5 minutes
         );

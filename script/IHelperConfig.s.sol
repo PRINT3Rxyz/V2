@@ -15,12 +15,9 @@ interface IHelperConfig {
         address weth;
         address usdc;
         address link;
-        address uniV3SwapRouter;
-        address uniV3Factory;
         address chainlinkRouter;
         address pyth;
         address sequencerUptimeFeed;
-        address nativeLinkUsdFeed;
     }
 
     function getActiveNetworkConfig() external view returns (NetworkConfig memory);
