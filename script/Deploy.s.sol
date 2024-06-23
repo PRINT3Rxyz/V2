@@ -300,7 +300,6 @@ contract Deploy is Script {
             185000,
             300_000,
             0.005 ether,
-            0.0001 gwei,
             activeNetworkConfig.contracts.nativeLinkUsdFeed, // LINK USD BASE SEPOLIA
             activeNetworkConfig.contracts.sequencerUptimeFeed,
             5 minutes

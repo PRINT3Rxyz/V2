@@ -5,7 +5,6 @@ import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
 import {IMarket} from "../markets/interfaces/IMarket.sol";
 import {IChainlinkFeed} from "./interfaces/IChainlinkFeed.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
-import {MerkleProofLib} from "../libraries/MerkleProofLib.sol";
 import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {PythStructs} from "@pyth/contracts/PythStructs.sol";
 import {IERC20} from "../tokens/interfaces/IERC20.sol";
@@ -114,14 +113,6 @@ library Oracle {
         uint256 premiumFee = totalEstimatedGasCost.percentage(PREMIUM_FEE);
 
         cost = totalEstimatedGasCost + premiumFee;
-    }
-
-    function calculateSettlementFee(uint256 _ethAmount, uint256 _settlementFeePercentage)
-        internal
-        pure
-        returns (uint256)
-    {
-        return _ethAmount.percentage(_settlementFeePercentage);
     }
 
     /// @dev - Prepend the timestamp to the arguments before sending to the DON

@@ -158,7 +158,6 @@ contract ReplacePriceFeed is Script {
             185000,
             300_000,
             0.005 ether,
-            0.0001 gwei,
             0xb113F5A928BCfF189C998ab20d753a47F9dE5A61,
             sequencerUptimeFeed,
             5 minutes

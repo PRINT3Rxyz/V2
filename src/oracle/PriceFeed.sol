@@ -9,7 +9,6 @@ import {EnumerableMap} from "../libraries/EnumerableMap.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {IMarketFactory} from "../factory/interfaces/IMarketFactory.sol";
 import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
-import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
 import {IWETH} from "../tokens/interfaces/IWETH.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
@@ -46,10 +45,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     // Don IDs: https://docs.chain.link/chainlink-functions/supported-networks
     bytes32 private donId;
     address public sequencerUptimeFeed;
-    uint8 maxRetries;
     bool private isInitialized;
     uint64 subscriptionId;
-    uint64 settlementFee;
 
     bytes public encryptedSecretsUrls;
     // JavaScript source code
@@ -108,7 +105,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
@@ -119,7 +115,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        settlementFee = _settlementFee;
         nativeLinkPriceFeed = _nativeLinkPriceFeed;
         sequencerUptimeFeed = _sequencerUptimeFeed;
         timeToExpiration = _timeToExpiration;
@@ -132,7 +127,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed
     ) external onlyOwner {
         subscriptionId = _subId;
@@ -140,7 +134,6 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        settlementFee = _settlementFee;
         nativeLinkPriceFeed = _nativeLinkPriceFeed;
     }
 
@@ -318,42 +311,13 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         emit Response(requestId, data, response, err);
     }
 
-    function settleEthForLink() external onlyOwner nonReentrant {
+    // Eth must be settled to fund the Chainlink Functions Subscription
+    function withdrawEthForSettlement() external onlyOwner nonReentrant {
         uint256 ethBalance = address(this).balance;
 
         if (ethBalance == 0) revert PriceFeed_ZeroBalance();
 
-        // Bonus fee to the arbitrageur
-        uint256 settlementReward = Oracle.calculateSettlementFee(ethBalance, settlementFee);
-
-        uint256 conversionAmount = ethBalance - settlementReward;
-
-        ISwapRouter uniswapRouter = ISwapRouter(UNISWAP_V3_ROUTER);
-
-        IWETH(WETH).deposit{value: conversionAmount}();
-        IWETH(WETH).approve(address(uniswapRouter), conversionAmount);
-
-        address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = LINK;
-
-        uint24 feeTier = 3000;
-
-        uint256 amountOut = uniswapRouter.exactInput(
-            ISwapRouter.ExactInputParams({
-                path: abi.encodePacked(path[0], feeTier, path[1]),
-                recipient: address(this),
-                deadline: block.timestamp + 2 minutes,
-                amountIn: conversionAmount,
-                amountOutMinimum: 0
-            })
-        );
-
-        if (amountOut == 0) revert PriceFeed_SwapFailed();
-
-        SafeTransferLib.safeTransferETH(payable(msg.sender), settlementReward);
-
-        emit LinkBalanceSettled(settlementReward);
+        SafeTransferLib.safeTransferETH(payable(msg.sender), ethBalance);
     }
 
     /**
@@ -437,6 +401,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         if (pnlValue & MSB1 != 0) {
             // If msb is 1, this indicates the number is negative.
             // In this case, we flip all of the bits and add 1 to convert from +ve to -ve
+            // Can revert if pnl value is type(int128).max
             pnl.cumulativePnl = -int128(~pnlValue + 1);
         } else {
             // If msb is 0, the value is positive, so we convert and return as is.
@@ -474,6 +439,10 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
     function priceUpdateRequested(bytes32 _requestId) external view returns (bool) {
         return requestData.get(_requestId).requester != address(0);
+    }
+
+    function isValidAsset(string memory _ticker) external view returns (bool) {
+        return assetIds.contains(keccak256(abi.encode(_ticker)));
     }
 
     function getRequester(bytes32 _requestId) external view returns (address) {

@@ -87,7 +87,6 @@ interface IPriceFeed {
     event Response(bytes32 indexed requestId, RequestData requestData, bytes response, bytes err);
     event AssetSupported(string indexed ticker, uint8 tokenDecimals);
     event SupportRemoved(string indexed ticker);
-    event LinkBalanceSettled(uint256 indexed amount);
     event PriceUpdated(string ticker, uint48 timestamp, uint64 medianPrice, uint16 variance);
 
     function sequencerUptimeFeed() external view returns (address);
@@ -97,7 +96,6 @@ interface IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
@@ -111,7 +109,6 @@ interface IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed
     ) external;
     function supportAsset(string memory _ticker, SecondaryStrategy calldata _strategy, uint8 _tokenDecimals) external;

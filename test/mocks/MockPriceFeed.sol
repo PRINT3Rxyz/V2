@@ -44,7 +44,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     bytes32 private donId;
     address public sequencerUptimeFeed;
     uint64 subscriptionId;
-    uint64 settlementFee;
     uint8 maxRetries;
     bool private isInitialized;
 
@@ -112,7 +111,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed,
         address _sequencerUptimeFeed,
         uint48 _timeToExpiration
@@ -123,7 +121,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        settlementFee = _settlementFee;
         nativeLinkPriceFeed = _nativeLinkPriceFeed;
         sequencerUptimeFeed = _sequencerUptimeFeed;
         timeToExpiration = _timeToExpiration;
@@ -140,7 +137,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         uint256 _gasOverhead,
         uint32 _callbackGasLimit,
         uint256 _premiumFee,
-        uint64 _settlementFee,
         address _nativeLinkPriceFeed
     ) external {
         subscriptionId = _subId;
@@ -148,7 +144,6 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         gasOverhead = _gasOverhead;
         callbackGasLimit = _callbackGasLimit;
         premiumFee = _premiumFee;
-        settlementFee = _settlementFee;
         nativeLinkPriceFeed = _nativeLinkPriceFeed;
     }
 
