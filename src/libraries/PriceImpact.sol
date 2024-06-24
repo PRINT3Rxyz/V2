@@ -64,18 +64,18 @@ library PriceImpact {
 
         ImpactState memory state;
 
-        state = _getImpactValues(_id, market, _request.input.ticker);
+        state = _getImpactValues(_id, market);
 
-        state.longOi = market.getOpenInterest(_id, _request.input.ticker, true);
-        state.shortOi = market.getOpenInterest(_id, _request.input.ticker, false);
+        state.longOi = market.getOpenInterest(_id, true);
+        state.shortOi = market.getOpenInterest(_id, false);
 
         if (_request.input.isLong) {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id, market, vault, _request.input.ticker, _prices.indexPrice, _prices.longMarketTokenPrice, true
+                _id, market, vault, _prices.indexPrice, _prices.longMarketTokenPrice, true
             ).toInt256();
         } else {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id, market, vault, _request.input.ticker, _prices.indexPrice, _prices.shortMarketTokenPrice, false
+                _id, market, vault, _prices.indexPrice, _prices.shortMarketTokenPrice, false
             ).toInt256();
         }
 
@@ -148,7 +148,7 @@ library PriceImpact {
         }
 
         if (priceImpactUsd > 0) {
-            priceImpactUsd = _validateImpactDelta(_id, market, _request.input.ticker, priceImpactUsd);
+            priceImpactUsd = _validateImpactDelta(_id, market, priceImpactUsd);
         }
 
         impactedPrice =
@@ -231,12 +231,8 @@ library PriceImpact {
      * Positive impact is capped by the impact pool.
      * If the positive impact is > impact pool, return the entire impact pool.
      */
-    function _validateImpactDelta(MarketId _id, IMarket market, string memory _ticker, int256 _priceImpactUsd)
-        private
-        view
-        returns (int256)
-    {
-        int256 impactPoolUsd = market.getImpactPool(_id, _ticker).toInt256();
+    function _validateImpactDelta(MarketId _id, IMarket market, int256 _priceImpactUsd) private view returns (int256) {
+        int256 impactPoolUsd = market.getImpactPool(_id).toInt256();
         if (_priceImpactUsd > impactPoolUsd) {
             return impactPoolUsd;
         } else {
@@ -253,12 +249,8 @@ library PriceImpact {
         }
     }
 
-    function _getImpactValues(MarketId _id, IMarket market, string memory _ticker)
-        private
-        view
-        returns (ImpactState memory state)
-    {
-        (state.positiveLiquidityScalar, state.negativeLiquidityScalar) = market.getImpactValues(_id, _ticker);
+    function _getImpactValues(MarketId _id, IMarket market) private view returns (ImpactState memory state) {
+        (state.positiveLiquidityScalar, state.negativeLiquidityScalar) = market.getImpactValues(_id);
         state.positiveLiquidityScalar = state.positiveLiquidityScalar.expandDecimals(4, 30);
         state.negativeLiquidityScalar = state.negativeLiquidityScalar.expandDecimals(4, 30);
     }

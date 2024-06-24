@@ -103,7 +103,6 @@ contract TestAltOrders is Test {
         vm.startPrank(OWNER);
         WETH(weth).deposit{value: 1_000_000 ether}();
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: true,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
@@ -485,7 +484,7 @@ contract TestAltOrders is Test {
         positionManager.executePosition(marketId, key, bytes32(0), OWNER);
         vm.stopPrank();
 
-        Pool.Cumulatives memory cumulatives = market.getCumulatives(marketId, ethTicker);
+        Pool.Cumulatives memory cumulatives = market.getCumulatives(marketId);
         if (_isLong) {
             cumulatives.longAverageEntryPriceUsd = 1000e30;
             _newPrice = bound(_newPrice, 5000, 100_000);
@@ -494,9 +493,7 @@ contract TestAltOrders is Test {
             _newPrice = bound(_newPrice, 1, 2000);
         }
         vm.mockCall(
-            address(market),
-            abi.encodeWithSelector(market.getCumulatives.selector, marketId, ethTicker),
-            abi.encode(cumulatives)
+            address(market), abi.encodeWithSelector(market.getCumulatives.selector, marketId), abi.encode(cumulatives)
         );
 
         bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
@@ -517,15 +514,13 @@ contract TestAltOrders is Test {
         skip(30);
 
         if (_isLong) {
-            vm.assume(
-                MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 3000e30, 1e18, true) > 0.45e18
-            );
+            vm.assume(MarketUtils.getPnlFactor(marketId, market, vault, 3000e30, 3000e30, 1e18, true) > 0.45e18);
             // ADL any one of the positions
             bytes32 positionKey = keccak256(abi.encode(ethTicker, OWNER, true));
             vm.prank(OWNER);
             positionManager.executeAdl(marketId, requestKey, positionKey);
         } else {
-            vm.assume(MarketUtils.getPnlFactor(marketId, market, vault, ethTicker, 3000e30, 1e30, 1e6, false) > 0.45e18);
+            vm.assume(MarketUtils.getPnlFactor(marketId, market, vault, 3000e30, 1e30, 1e6, false) > 0.45e18);
             // ADL any one of the positions
             bytes32 positionKey = keccak256(abi.encode(ethTicker, OWNER, false));
             vm.prank(OWNER);

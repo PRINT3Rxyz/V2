@@ -57,7 +57,6 @@ library Pool {
 
     struct GlobalState {
         IVault vault;
-        bool isMultiAsset;
         bool isInitialized;
         address poolOwner;
         /**
@@ -66,8 +65,7 @@ library Pool {
          * based on the open interest to max open interest ratio.
          */
         uint256 borrowScale;
-        string[] tickers;
-        EnumerableSetLib.Bytes32Set assetIds;
+        string ticker;
         EnumerableMap.MarketMap requests;
     }
 
@@ -96,14 +94,6 @@ library Pool {
          * The last time the storage was updated.
          */
         uint48 lastUpdate;
-        /**
-         * Number of shares allocated to each sub-market.
-         * A market can contain multiple index tokens, each of which have
-         * a percentage of liquidity allocated to them.
-         * Units are in shares, where 100% = 100
-         * Cumulative allocations must always total up to 100.
-         */
-        uint8 allocationShare;
         /**
          * The value (in USD) of total market funding accumulated.
          * Swings back and forth across 0 depending on the velocity / funding rate.
@@ -193,7 +183,6 @@ library Pool {
     }
 
     function initialize(Storage storage pool, Config memory _config) external {
-        pool.allocationShare = 100;
         pool.config = _config;
         pool.lastUpdate = uint48(block.timestamp);
     }
@@ -214,13 +203,7 @@ library Pool {
         if (address(this) != address(market)) revert Pool_InvalidUpdate();
 
         Funding.updateState(
-            _id,
-            market,
-            pool,
-            _ticker,
-            _prices.indexPrice,
-            _isIncrease ? _sizeDelta.toInt256() : -_sizeDelta.toInt256(),
-            _isLong
+            _id, market, pool, _prices.indexPrice, _isIncrease ? _sizeDelta.toInt256() : -_sizeDelta.toInt256(), _isLong
         );
 
         if (_sizeDelta != 0) {
@@ -228,7 +211,6 @@ library Pool {
                 _id,
                 pool,
                 market,
-                _ticker,
                 _prices.impactedPrice == 0 ? _prices.indexPrice : _prices.impactedPrice, // If no price impact, set to the index price
                 _isIncrease ? int256(_sizeDelta) : -int256(_sizeDelta),
                 _isLong
@@ -249,7 +231,7 @@ library Pool {
             }
         }
 
-        _updateBorrowState(_id, market, pool, _ticker, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong);
+        _updateBorrowState(_id, market, pool, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong);
 
         pool.lastUpdate = uint48(block.timestamp);
 
@@ -326,7 +308,6 @@ library Pool {
         MarketId _id,
         Pool.Storage storage _storage,
         IMarket market,
-        string calldata _ticker,
         uint256 _priceUsd,
         int256 _sizeDeltaUsd,
         bool _isLong
@@ -339,14 +320,14 @@ library Pool {
             );
 
             _storage.cumulatives.weightedAvgCumulativeLong =
-                Borrowing.getNextAverageCumulative(_id, market, _ticker, _sizeDeltaUsd, true);
+                Borrowing.getNextAverageCumulative(_id, market, _sizeDeltaUsd, true);
         } else {
             _storage.cumulatives.shortAverageEntryPriceUsd = MarketUtils.calculateWeightedAverageEntryPrice(
                 _storage.cumulatives.shortAverageEntryPriceUsd, _storage.shortOpenInterest, _sizeDeltaUsd, _priceUsd
             );
 
             _storage.cumulatives.weightedAvgCumulativeShort =
-                Borrowing.getNextAverageCumulative(_id, market, _ticker, _sizeDeltaUsd, false);
+                Borrowing.getNextAverageCumulative(_id, market, _sizeDeltaUsd, false);
         }
     }
 
@@ -354,13 +335,12 @@ library Pool {
         MarketId _id,
         IMarket market,
         Storage storage _storage,
-        string calldata _ticker,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
     ) private {
         Borrowing.updateState(
-            _id, market, market.getVault(_id), _storage, _ticker, _collateralPrice, _collateralBaseUnit, _isLong
+            _id, market, market.getVault(_id), _storage, _collateralPrice, _collateralBaseUnit, _isLong
         );
     }
 

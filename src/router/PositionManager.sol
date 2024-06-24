@@ -35,11 +35,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
     IGlobalRewardTracker public rewardTracker;
 
-    uint256 private constant LONG_BASE_UNIT = 1e18;
-    uint256 private constant SHORT_BASE_UNIT = 1e6;
     uint256 constant GAS_BUFFER = 10000;
-    string private constant LONG_TICKER = "ETH";
-    string private constant SHORT_TICKER = "USDC";
 
     IMarketFactory public marketFactory;
     IReferralStorage public referralStorage;

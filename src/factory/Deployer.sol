@@ -10,9 +10,8 @@ library Deployer {
         external
         returns (address)
     {
-        bytes32 salt = keccak256(
-            abi.encodePacked(_params.requester, _params.input.marketTokenName, _params.input.marketTokenSymbol)
-        );
+        bytes32 salt =
+            keccak256(abi.encode(_params.requester, _params.input.marketTokenName, _params.input.marketTokenSymbol));
         return address(
             new Vault{salt: salt}(
                 _params.requester, _weth, _usdc, _params.input.marketTokenName, _params.input.marketTokenSymbol

@@ -33,33 +33,32 @@ library Funding {
         MarketId _id,
         IMarket market,
         Pool.Storage storage pool,
-        string calldata _ticker,
         uint256 _indexPrice,
         int256 _sizeDelta,
         bool _isLong
     ) internal {
-        int256 nextSkew = _calculateNextSkew(_id, market, _ticker, _sizeDelta, _isLong);
+        int256 nextSkew = _calculateNextSkew(_id, market, _sizeDelta, _isLong);
 
-        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _ticker, _indexPrice);
+        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _indexPrice);
 
         pool.fundingRateVelocity =
             getCurrentVelocity(market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale).toInt64();
     }
 
-    function calculateNextFunding(MarketId _id, IMarket market, string calldata _ticker, uint256 _indexPrice)
+    function calculateNextFunding(MarketId _id, IMarket market, uint256 _indexPrice)
         public
         view
         returns (int64, int256)
     {
-        (int64 fundingRate, int256 unrecordedFunding) = _getUnrecordedFundingWithRate(_id, market, _ticker, _indexPrice);
+        (int64 fundingRate, int256 unrecordedFunding) = _getUnrecordedFundingWithRate(_id, market, _indexPrice);
 
-        return (fundingRate, market.getFundingAccrued(_id, _ticker) + unrecordedFunding);
+        return (fundingRate, market.getFundingAccrued(_id) + unrecordedFunding);
     }
 
     /**
      * @dev Returns the current funding rate given current market conditions.
      */
-    function getCurrentFundingRate(MarketId _id, IMarket market, string calldata _ticker) public view returns (int64) {
+    function getCurrentFundingRate(MarketId _id, IMarket market) public view returns (int64) {
         // example:
         //  - fundingRate         = 0
         //  - velocity            = 0.0025
@@ -72,10 +71,10 @@ library Funding {
         // currentFundingRate = 0 + 0.0025 * (29,000 / 86,400)
         //                    = 0 + 0.0025 * 0.33564815
         //                    = 0.00083912
-        (int64 fundingRate, int64 fundingRateVelocity) = market.getFundingRates(_id, _ticker);
+        (int64 fundingRate, int64 fundingRateVelocity) = market.getFundingRates(_id);
 
         int256 currentFundingRate =
-            fundingRate + fundingRateVelocity.sMulWad(_getProportionalFundingElapsed(_id, market, _ticker));
+            fundingRate + fundingRateVelocity.sMulWad(_getProportionalFundingElapsed(_id, market));
 
         // Clamp rate
         return currentFundingRate.clamp(-sMAX_FUNDING_RATE, sMAX_FUNDING_RATE).toInt64();
@@ -115,12 +114,12 @@ library Funding {
      * @dev Returns the proportional time elapsed since last funding (proportional by 1 day).
      * 18 D.P
      */
-    function _getProportionalFundingElapsed(MarketId _id, IMarket market, string calldata _ticker)
+    function _getProportionalFundingElapsed(MarketId _id, IMarket market)
         private
         view
         returns (int256 proportionalFundingElapsed)
     {
-        uint48 timeElapsed = _blockTimestamp() - market.getLastUpdate(_id, _ticker);
+        uint48 timeElapsed = _blockTimestamp() - market.getLastUpdate(_id);
 
         proportionalFundingElapsed = timeElapsed.divWad(SECONDS_IN_DAY).toInt256();
     }
@@ -128,30 +127,31 @@ library Funding {
     /**
      * @dev Returns the next market funding accrued value.
      */
-    function _getUnrecordedFundingWithRate(MarketId _id, IMarket market, string calldata _ticker, uint256 _indexPrice)
+    function _getUnrecordedFundingWithRate(MarketId _id, IMarket market, uint256 _indexPrice)
         private
         view
         returns (int64 fundingRate, int256 unrecordedFunding)
     {
-        fundingRate = getCurrentFundingRate(_id, market, _ticker);
+        fundingRate = getCurrentFundingRate(_id, market);
 
-        (int256 storedFundingRate,) = market.getFundingRates(_id, _ticker);
+        (int256 storedFundingRate,) = market.getFundingRates(_id);
 
         // Minus sign is needed as funding flows in the opposite direction of the skew
         // Take an average of the current / prev funding rates
         int256 avgFundingRate = -storedFundingRate.avg(fundingRate);
 
-        unrecordedFunding = avgFundingRate.mulDivSigned(_getProportionalFundingElapsed(_id, market, _ticker), sUNIT)
-            .mulDivSigned(_indexPrice.toInt256(), sUNIT);
+        unrecordedFunding = avgFundingRate.mulDivSigned(_getProportionalFundingElapsed(_id, market), sUNIT).mulDivSigned(
+            _indexPrice.toInt256(), sUNIT
+        );
     }
 
-    function _calculateNextSkew(MarketId _id, IMarket market, string calldata _ticker, int256 _sizeDelta, bool _isLong)
+    function _calculateNextSkew(MarketId _id, IMarket market, int256 _sizeDelta, bool _isLong)
         private
         view
         returns (int256 nextSkew)
     {
-        uint256 longOI = market.getOpenInterest(_id, _ticker, true);
-        uint256 shortOI = market.getOpenInterest(_id, _ticker, false);
+        uint256 longOI = market.getOpenInterest(_id, true);
+        uint256 shortOI = market.getOpenInterest(_id, false);
 
         if (_isLong) {
             _sizeDelta > 0 ? longOI += _sizeDelta.abs() : longOI -= _sizeDelta.abs();

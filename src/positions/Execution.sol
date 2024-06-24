@@ -124,7 +124,6 @@ library Execution {
                     _id,
                     market,
                     vault,
-                    request.input.ticker,
                     request.input.sizeDelta,
                     prices.indexPrice,
                     prices.collateralPrice,
@@ -147,7 +146,7 @@ library Execution {
 
         prices = getTokenPrices(priceFeed, _position.ticker, _requestTimestamp, _position.isLong, false);
 
-        startingPnlFactor = _getPnlFactor(_id, market, vault, prices, _position.ticker, _position.isLong);
+        startingPnlFactor = _getPnlFactor(_id, market, vault, prices, _position.isLong);
         uint256 absPnlFactor = startingPnlFactor.abs();
 
         if (absPnlFactor < MAX_PNL_FACTOR || startingPnlFactor < 0) {
@@ -162,7 +161,7 @@ library Execution {
 
         uint256 percentageToAdl = Position.calculateAdlPercentage(absPnlFactor, pnl, _position.size);
 
-        uint256 poolUsd = _getPoolUsd(_id, market, vault, prices, _position.ticker, _position.isLong);
+        uint256 poolUsd = _getPoolUsd(vault, prices, _position.isLong);
         prices.impactedPrice = _executeAdlImpact(
             prices.indexPrice, _position.weightedAvgEntryPrice, pnl.abs(), poolUsd, absPnlFactor, _position.isLong
         );
@@ -223,7 +222,7 @@ library Execution {
 
         if (checkIsLiquidatable(_id, market, position, _prices)) revert Execution_LiquidatablePosition();
 
-        Position.checkLeverage(_id, market, _params.request.input.ticker, position.size, remainingCollateralUsd);
+        Position.checkLeverage(_id, market, position.size, remainingCollateralUsd);
     }
 
     function createNewPosition(
@@ -263,9 +262,7 @@ library Execution {
 
         position = Position.generateNewPosition(_id, market, _params.request, _prices.impactedPrice, collateralDeltaUsd);
 
-        Position.checkLeverage(
-            _id, market, _params.request.input.ticker, _params.request.input.sizeDelta, collateralDeltaUsd
-        );
+        Position.checkLeverage(_id, market, _params.request.input.sizeDelta, collateralDeltaUsd);
     }
 
     function increasePosition(
@@ -323,7 +320,7 @@ library Execution {
             _prices.impactedPrice
         );
 
-        Position.checkLeverage(_id, market, position.ticker, position.size, position.collateral);
+        Position.checkLeverage(_id, market, position.size, position.collateral);
     }
 
     function decreasePosition(
@@ -395,10 +392,9 @@ library Execution {
         IVault vault,
         Prices memory _prices,
         int256 _startingPnlFactor,
-        string memory _ticker,
         bool _isLong
     ) internal view {
-        int256 newPnlFactor = _getPnlFactor(_id, market, vault, _prices, _ticker, _isLong);
+        int256 newPnlFactor = _getPnlFactor(_id, market, vault, _prices, _isLong);
 
         if (newPnlFactor >= _startingPnlFactor) revert Execution_PNLFactorNotReduced();
     }
@@ -594,7 +590,7 @@ library Execution {
         uint256 _sizeDelta
     ) private view returns (Position.Data memory, int256 fundingFee) {
         (int256 fundingFeeUsd, int256 nextFundingAccrued) = Position.getFundingFeeDelta(
-            _id, market, _position.ticker, _prices.indexPrice, _sizeDelta, _position.fundingParams.lastFundingAccrued
+            _id, market, _prices.indexPrice, _sizeDelta, _position.fundingParams.lastFundingAccrued
         );
 
         _position.fundingParams.lastFundingAccrued = nextFundingAccrued;
@@ -618,7 +614,7 @@ library Execution {
         _position.borrowingParams.feesOwed = 0;
 
         (_position.borrowingParams.lastLongCumulativeBorrowFee, _position.borrowingParams.lastShortCumulativeBorrowFee)
-        = market.getCumulativeBorrowFees(_id, _position.ticker);
+        = market.getCumulativeBorrowFees(_id);
 
         return (_position, borrowFee);
     }
@@ -689,7 +685,7 @@ library Execution {
         if (!_feeState.isFullDecrease) {
             if (_position.collateral < _minCollateralUsd) revert Execution_MinCollateralThreshold();
 
-            Position.checkLeverage(_id, market, _position.ticker, _position.size, _position.collateral);
+            Position.checkLeverage(_id, market, _position.size, _position.collateral);
         }
 
         return (_position, _feeState.afterFeeAmount);
@@ -774,23 +770,13 @@ library Execution {
     }
 
     /// @dev Private function to prevent STD Error
-    function _getPnlFactor(
-        MarketId _id,
-        IMarket market,
-        IVault vault,
-        Prices memory _prices,
-        string memory _ticker,
-        bool _isLong
-    ) private view returns (int256 pnlFactor) {
+    function _getPnlFactor(MarketId _id, IMarket market, IVault vault, Prices memory _prices, bool _isLong)
+        private
+        view
+        returns (int256 pnlFactor)
+    {
         pnlFactor = MarketUtils.getPnlFactor(
-            _id,
-            market,
-            vault,
-            _ticker,
-            _prices.indexPrice,
-            _prices.collateralPrice,
-            _prices.collateralBaseUnit,
-            _isLong
+            _id, market, vault, _prices.indexPrice, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong
         );
     }
 
@@ -800,17 +786,8 @@ library Execution {
     }
 
     /// @dev Private function to prevent STD Error
-    function _getPoolUsd(
-        MarketId _id,
-        IMarket market,
-        IVault vault,
-        Prices memory _prices,
-        string memory _ticker,
-        bool _isLong
-    ) private view returns (uint256 poolUsd) {
-        return MarketUtils.getPoolBalanceUsd(
-            _id, market, vault, _ticker, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong
-        );
+    function _getPoolUsd(IVault vault, Prices memory _prices, bool _isLong) private view returns (uint256 poolUsd) {
+        return MarketUtils.getPoolBalanceUsd(vault, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong);
     }
 
     function _calculateAmountAfterFees(
@@ -864,7 +841,7 @@ library Execution {
         view
         returns (uint256 maintenanceCollateral)
     {
-        uint256 maintenancePercentage = market.getMaintenanceMargin(_id, _position.ticker).expandDecimals(4, 18);
+        uint256 maintenancePercentage = market.getMaintenanceMargin(_id).expandDecimals(4, 18);
         maintenanceCollateral = _position.collateral.percentage(maintenancePercentage);
     }
 }

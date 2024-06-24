@@ -24,7 +24,6 @@ library Borrowing {
         IMarket market,
         IVault vault,
         Pool.Storage storage pool,
-        string calldata _ticker,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
@@ -34,13 +33,13 @@ library Borrowing {
                 calculateFeesSinceUpdate(pool.longBorrowingRate, pool.lastUpdate);
 
             pool.longBorrowingRate =
-                uint64(calculateRate(_id, market, vault, _ticker, _collateralPrice, _collateralBaseUnit, true));
+                uint64(calculateRate(_id, market, vault, _collateralPrice, _collateralBaseUnit, true));
         } else {
             pool.cumulatives.shortCumulativeBorrowFees +=
                 calculateFeesSinceUpdate(pool.shortBorrowingRate, pool.lastUpdate);
 
             pool.shortBorrowingRate =
-                uint64(calculateRate(_id, market, vault, _ticker, _collateralPrice, _collateralBaseUnit, false));
+                uint64(calculateRate(_id, market, vault, _collateralPrice, _collateralBaseUnit, false));
         }
     }
 
@@ -49,17 +48,7 @@ library Borrowing {
         view
         returns (uint256 totalFeeUsd)
     {
-        string[] memory tickers = market.getTickers(_id);
-        uint256 len = tickers.length;
-
-        totalFeeUsd;
-        for (uint256 i = 0; i < len;) {
-            totalFeeUsd += getTotalFeesOwedForAsset(_id, market, tickers[i], _isLong);
-
-            unchecked {
-                ++i;
-            }
-        }
+        totalFeeUsd = getTotalFeesOwedForAsset(_id, market, _isLong);
     }
 
     /**
@@ -74,21 +63,19 @@ library Borrowing {
      * f_current: The current cumulative fee on the market.
      * p: The proportion of the new position size relative to the total open interest.
      */
-    function getNextAverageCumulative(
-        MarketId _id,
-        IMarket market,
-        string calldata _ticker,
-        int256 _sizeDeltaUsd,
-        bool _isLong
-    ) internal view returns (uint256 nextAverageCumulative) {
+    function getNextAverageCumulative(MarketId _id, IMarket market, int256 _sizeDeltaUsd, bool _isLong)
+        internal
+        view
+        returns (uint256 nextAverageCumulative)
+    {
         uint256 absSizeDelta = _sizeDeltaUsd.abs();
 
-        uint256 openInterestUsd = market.getOpenInterest(_id, _ticker, _isLong);
+        uint256 openInterestUsd = market.getOpenInterest(_id, _isLong);
 
         uint256 currentCumulative =
-            market.getCumulativeBorrowFee(_id, _ticker, _isLong) + calculatePendingFees(_id, market, _ticker, _isLong);
+            market.getCumulativeBorrowFee(_id, _isLong) + calculatePendingFees(_id, market, _isLong);
 
-        uint256 lastCumulative = market.getAverageCumulativeBorrowFee(_id, _ticker, _isLong);
+        uint256 lastCumulative = market.getAverageCumulativeBorrowFee(_id, _isLong);
 
         if (openInterestUsd == 0 || lastCumulative == 0) return currentCumulative;
 
@@ -110,16 +97,16 @@ library Borrowing {
 
     /// @dev Units: Fees as a percentage (e.g 0.03e18 = 3%)
     /// @dev Gets fees since last time the cumulative market rate was updated
-    function calculatePendingFees(MarketId _id, IMarket market, string calldata _ticker, bool _isLong)
+    function calculatePendingFees(MarketId _id, IMarket market, bool _isLong)
         public
         view
         returns (uint256 pendingFees)
     {
-        uint256 borrowRate = market.getBorrowingRate(_id, _ticker, _isLong);
+        uint256 borrowRate = market.getBorrowingRate(_id, _isLong);
 
         if (borrowRate == 0) return 0;
 
-        uint256 timeElapsed = block.timestamp - market.getLastUpdate(_id, _ticker);
+        uint256 timeElapsed = block.timestamp - market.getLastUpdate(_id);
 
         if (timeElapsed == 0) return 0;
 
@@ -145,15 +132,14 @@ library Borrowing {
         MarketId _id,
         IMarket market,
         IVault vault,
-        string calldata _ticker,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
     ) public view returns (uint256 borrowRatePerDay) {
-        uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
+        uint256 openInterest = market.getOpenInterest(_id, _isLong);
 
         uint256 maxOi =
-            MarketUtils.getMaxOpenInterest(_id, market, vault, _ticker, _collateralPrice, _collateralBaseUnit, _isLong);
+            MarketUtils.getMaxOpenInterest(_id, market, vault, _collateralPrice, _collateralBaseUnit, _isLong);
 
         borrowRatePerDay = market.getBorrowScale(_id);
 
@@ -165,15 +151,15 @@ library Borrowing {
         // If Oi > Max Oi, default rate to max rate per day
     }
 
-    function getTotalFeesOwedForAsset(MarketId _id, IMarket market, string memory _ticker, bool _isLong)
+    function getTotalFeesOwedForAsset(MarketId _id, IMarket market, bool _isLong)
         public
         view
         returns (uint256 totalFeesOwedUsd)
     {
-        uint256 accumulatedFees = market.getCumulativeBorrowFee(_id, _ticker, _isLong)
-            - market.getAverageCumulativeBorrowFee(_id, _ticker, _isLong);
+        uint256 accumulatedFees =
+            market.getCumulativeBorrowFee(_id, _isLong) - market.getAverageCumulativeBorrowFee(_id, _isLong);
 
-        uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
+        uint256 openInterest = market.getOpenInterest(_id, _isLong);
 
         totalFeesOwedUsd = accumulatedFees.mulWad(openInterest);
     }

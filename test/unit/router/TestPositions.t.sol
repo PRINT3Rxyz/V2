@@ -117,7 +117,6 @@ contract TestPositions is Test {
         vm.startPrank(OWNER);
         WETH(weth).deposit{value: 1_000_000 ether}();
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: true,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
@@ -823,9 +822,9 @@ contract TestPositions is Test {
         skip(1 hours);
 
         // Check Fees
-        int256 fundingFees = market.getFundingAccrued(marketId, ethTicker);
+        int256 fundingFees = market.getFundingAccrued(marketId);
         assertNotEq(fundingFees, 0, "Funding Fees Are 0");
-        uint256 borrowFees = market.getCumulativeBorrowFee(marketId, ethTicker, _isLong);
+        uint256 borrowFees = market.getCumulativeBorrowFee(marketId, _isLong);
         assertNotEq(borrowFees, 0, "Borrow Fees Are 0");
     }
 

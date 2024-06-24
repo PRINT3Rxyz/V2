@@ -45,7 +45,7 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     IPriceFeed public priceFeed;
 
     // Each Asset's storage is tracked through this mapping
-    mapping(MarketId => mapping(bytes32 assetId => Pool.Storage assetStorage)) private marketStorage;
+    mapping(MarketId => Pool.Storage assetStorage) private marketStorage;
     mapping(MarketId => Pool.GlobalState) private globalState;
 
     modifier orderExists(MarketId _id, bytes32 _key) {
@@ -82,21 +82,18 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         address _poolOwner,
         uint256 _borrowScale,
         address _marketToken,
-        string memory _ticker,
-        bool _isMultiAsset
+        string memory _ticker
     ) external onlyRoles(_ROLE_0) {
         Pool.GlobalState storage state = globalState[_id];
 
         if (state.isInitialized) revert Market_AlreadyInitialized();
 
-        bytes32 assetId = MarketUtils.generateAssetId(_ticker);
-        if (state.assetIds.contains(assetId)) revert Market_TokenAlreadyExists();
-        if (!state.assetIds.add(assetId)) revert Market_FailedToAddAssetId();
-        state.tickers.push(_ticker);
-        Pool.initialize(marketStorage[_id][assetId], _config);
-        emit TokenAdded(assetId);
+        state.ticker = _ticker;
 
-        state.isMultiAsset = _isMultiAsset;
+        Pool.initialize(marketStorage[_id], _config);
+
+        emit TokenAdded(_ticker);
+
         state.poolOwner = _poolOwner;
         state.vault = IVault(_marketToken);
         state.borrowScale = _borrowScale;
@@ -108,65 +105,6 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     /**
      * =========================================== Admin Functions  ===========================================
      */
-
-    function addToken(
-        MarketId _id,
-        Pool.Config calldata _config,
-        string memory _ticker,
-        bytes calldata _newAllocations,
-        bytes32 _priceRequestKey
-    ) external onlyPoolOwner(_id) {
-        Pool.GlobalState storage state = globalState[_id];
-
-        if (!state.isMultiAsset) revert Market_SingleAssetMarket();
-        if (state.assetIds.length() >= MAX_ASSETS) revert Market_MaxAssetsReached();
-        bytes32 assetId = keccak256(abi.encode(_ticker));
-        if (state.assetIds.contains(assetId)) revert Market_TokenAlreadyExists();
-
-        Pool.validateConfig(_config);
-
-        if (!state.assetIds.add(assetId)) revert Market_FailedToAddAssetId();
-        state.tickers.push(_ticker);
-
-        Pool.initialize(marketStorage[_id][assetId], _config);
-
-        _reallocate(_id, _newAllocations, _priceRequestKey);
-    }
-
-    function removeToken(MarketId _id, string memory _ticker, bytes calldata _newAllocations, bytes32 _priceRequestKey)
-        external
-        onlyPoolOwner(_id)
-    {
-        Pool.GlobalState storage state = globalState[_id];
-
-        if (!state.isMultiAsset) revert Market_SingleAssetMarket();
-        bytes32 assetId = keccak256(abi.encode(_ticker));
-        if (!state.assetIds.contains(assetId)) revert Market_TokenDoesNotExist();
-        uint16 len = uint16(state.assetIds.length());
-        if (len == 1) revert Market_MinimumAssetsReached();
-
-        if (marketStorage[_id][assetId].longOpenInterest + marketStorage[_id][assetId].shortOpenInterest > 0) {
-            revert Market_FailedToRemoveAssetId();
-        }
-
-        if (!state.assetIds.remove(assetId)) revert Market_FailedToRemoveAssetId();
-
-        // Remove ticker by swap / pop method
-        for (uint16 i = 0; i < len;) {
-            if (keccak256(abi.encode(state.tickers[i])) == assetId) {
-                state.tickers[i] = state.tickers[len - 1];
-                state.tickers.pop();
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        delete marketStorage[_id][assetId];
-
-        _reallocate(_id, _newAllocations, _priceRequestKey);
-    }
 
     function transferPoolOwnership(MarketId _id, address _newOwner) external {
         Pool.GlobalState storage state = globalState[_id];
@@ -188,11 +126,9 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
 
         state.borrowScale = _borrowScale;
 
-        bytes32 assetId = keccak256(abi.encode(_ticker));
+        marketStorage[_id].config = _config;
 
-        marketStorage[_id][assetId].config = _config;
-
-        emit MarketConfigUpdated(assetId);
+        emit MarketConfigUpdated(_ticker);
     }
 
     function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {
@@ -290,14 +226,6 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     /**
      * =========================================== External State Functions  ===========================================
      */
-    /// @dev - Caller must've requested a price before calling this function
-    function reallocate(MarketId _id, bytes calldata _allocations, bytes32 _priceRequestKey)
-        external
-        onlyPoolOwner(_id)
-    {
-        _reallocate(_id, _allocations, _priceRequestKey);
-    }
-
     function updateMarketState(
         MarketId _id,
         string calldata _ticker,
@@ -306,66 +234,20 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         bool _isLong,
         bool _isIncrease
     ) external nonReentrant onlyRoles(_ROLE_6) {
-        Pool.GlobalState storage state = globalState[_id];
-
-        bytes32 assetId = keccak256(abi.encode(_ticker));
-        if (!state.assetIds.contains(assetId)) revert Market_TokenDoesNotExist();
-
-        Pool.Storage storage self = marketStorage[_id][assetId];
+        Pool.Storage storage self = marketStorage[_id];
 
         Pool.updateState(_id, this, self, _ticker, _sizeDelta, _prices, _isLong, _isIncrease);
     }
 
-    function updateImpactPool(MarketId _id, string calldata _ticker, int256 _priceImpactUsd)
-        external
-        nonReentrant
-        onlyRoles(_ROLE_6)
-    {
-        bytes32 assetId = keccak256(abi.encode(_ticker));
+    function updateImpactPool(MarketId _id, int256 _priceImpactUsd) external nonReentrant onlyRoles(_ROLE_6) {
         _priceImpactUsd > 0
-            ? marketStorage[_id][assetId].impactPool += _priceImpactUsd.abs()
-            : marketStorage[_id][assetId].impactPool -= _priceImpactUsd.abs();
+            ? marketStorage[_id].impactPool += _priceImpactUsd.abs()
+            : marketStorage[_id].impactPool -= _priceImpactUsd.abs();
     }
 
     /**
      * =========================================== Private Functions  ===========================================
      */
-
-    /// @dev - Price request needs to contain all tickers in the market + long / short tokens, or will revert
-    function _reallocate(MarketId _id, bytes calldata _allocations, bytes32 _priceRequestKey) private {
-        Pool.GlobalState storage state = globalState[_id];
-
-        if (!state.isMultiAsset) revert Market_SingleAssetMarket();
-        uint48 requestTimestamp = Oracle.getRequestTimestamp(priceFeed, _priceRequestKey);
-
-        uint256 longTokenPrice = Oracle.getPrice(priceFeed, LONG_TICKER, requestTimestamp);
-        uint256 shortTokenPrice = Oracle.getPrice(priceFeed, SHORT_TICKER, requestTimestamp);
-
-        string[] memory assetTickers = state.tickers;
-        if (_allocations.length != assetTickers.length) revert Market_AllocationLength();
-
-        uint8 total = 0;
-
-        // Iterate over each byte in allocations calldata
-        for (uint16 i = 0; i < _allocations.length;) {
-            uint8 allocationValue = uint8(_allocations[i]);
-
-            bytes32 assetId = keccak256(abi.encode(assetTickers[i]));
-            marketStorage[_id][assetId].allocationShare = allocationValue;
-
-            // Check the updated allocation value: new max open interest must be > current open interest
-            _validateOpenInterest(_id, state.vault, assetTickers[i], longTokenPrice, shortTokenPrice);
-
-            total += allocationValue;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        if (total != TOTAL_ALLOCATION) revert Market_InvalidCumulativeAllocation();
-    }
-
     function _validateOpenInterest(
         MarketId _id,
         IVault vault,
@@ -375,17 +257,13 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     ) private view {
         uint256 indexBaseUnit = Oracle.getBaseUnit(priceFeed, _ticker);
 
-        uint256 longMaxOi =
-            MarketUtils.getMaxOpenInterest(_id, this, vault, _ticker, _longSignedPrice, indexBaseUnit, true);
+        uint256 longMaxOi = MarketUtils.getMaxOpenInterest(_id, this, vault, _longSignedPrice, indexBaseUnit, true);
 
-        bytes32 assetId = keccak256(abi.encode(_ticker));
+        if (longMaxOi < marketStorage[_id].longOpenInterest) revert Market_InvalidAllocation();
 
-        if (longMaxOi < marketStorage[_id][assetId].longOpenInterest) revert Market_InvalidAllocation();
+        uint256 shortMaxOi = MarketUtils.getMaxOpenInterest(_id, this, vault, _shortSignedPrice, indexBaseUnit, false);
 
-        uint256 shortMaxOi =
-            MarketUtils.getMaxOpenInterest(_id, this, vault, _ticker, _shortSignedPrice, indexBaseUnit, false);
-
-        if (shortMaxOi < marketStorage[_id][assetId].shortOpenInterest) revert Market_InvalidAllocation();
+        if (shortMaxOi < marketStorage[_id].shortOpenInterest) revert Market_InvalidAllocation();
     }
 
     function _orderExists(MarketId _id, bytes32 _orderKey) private view {
@@ -407,24 +285,20 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         return globalState[_id].borrowScale;
     }
 
-    function getAssetIds(MarketId _id) external view returns (bytes32[] memory) {
-        return globalState[_id].assetIds.values();
+    function getStorage(MarketId _id) external view returns (Pool.Storage memory) {
+        return marketStorage[_id];
     }
 
-    function getStorage(MarketId _id, string calldata _ticker) external view returns (Pool.Storage memory) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))];
+    function getConfig(MarketId _id) external view returns (Pool.Config memory) {
+        return marketStorage[_id].config;
     }
 
-    function getConfig(MarketId _id, string calldata _ticker) external view returns (Pool.Config memory) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].config;
+    function getCumulatives(MarketId _id) external view returns (Pool.Cumulatives memory) {
+        return marketStorage[_id].cumulatives;
     }
 
-    function getCumulatives(MarketId _id, string calldata _ticker) external view returns (Pool.Cumulatives memory) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].cumulatives;
-    }
-
-    function getImpactPool(MarketId _id, string calldata _ticker) external view returns (uint256) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].impactPool;
+    function getImpactPool(MarketId _id) external view returns (uint256) {
+        return marketStorage[_id].impactPool;
     }
 
     function getRequest(MarketId _id, bytes32 _requestKey) external view returns (Pool.Input memory) {
@@ -435,80 +309,62 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         (, request) = globalState[_id].requests.at(_index);
     }
 
-    function getTickers(MarketId _id) external view returns (string[] memory) {
-        return globalState[_id].tickers;
+    function getTicker(MarketId _id) external view returns (string memory) {
+        return globalState[_id].ticker;
     }
 
-    function getImpactValues(MarketId _id, string calldata _ticker) external view returns (int16, int16) {
-        bytes32 assetId = keccak256(abi.encode(_ticker));
-        return (
-            marketStorage[_id][assetId].config.positiveLiquidityScalar,
-            marketStorage[_id][assetId].config.negativeLiquidityScalar
-        );
+    function getImpactValues(MarketId _id) external view returns (int16, int16) {
+        return (marketStorage[_id].config.positiveLiquidityScalar, marketStorage[_id].config.negativeLiquidityScalar);
     }
 
-    function getLastUpdate(MarketId _id, string calldata _ticker) external view returns (uint48) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].lastUpdate;
+    function getLastUpdate(MarketId _id) external view returns (uint48) {
+        return marketStorage[_id].lastUpdate;
     }
 
-    function getFundingRates(MarketId _id, string calldata _ticker) external view returns (int64, int64) {
-        bytes32 assetId = keccak256(abi.encode(_ticker));
-        return (marketStorage[_id][assetId].fundingRate, marketStorage[_id][assetId].fundingRateVelocity);
+    function getFundingRates(MarketId _id) external view returns (int64, int64) {
+        return (marketStorage[_id].fundingRate, marketStorage[_id].fundingRateVelocity);
     }
 
-    function getCumulativeBorrowFees(MarketId _id, string memory _ticker)
+    function getCumulativeBorrowFees(MarketId _id)
         external
         view
         returns (uint256 longCumulativeBorrowFees, uint256 shortCumulativeBorrowFees)
     {
-        bytes32 assetId = keccak256(abi.encode(_ticker));
         return (
-            marketStorage[_id][assetId].cumulatives.longCumulativeBorrowFees,
-            marketStorage[_id][assetId].cumulatives.shortCumulativeBorrowFees
+            marketStorage[_id].cumulatives.longCumulativeBorrowFees,
+            marketStorage[_id].cumulatives.shortCumulativeBorrowFees
         );
     }
 
-    function getCumulativeBorrowFee(MarketId _id, string memory _ticker, bool _isLong) public view returns (uint256) {
+    function getCumulativeBorrowFee(MarketId _id, bool _isLong) public view returns (uint256) {
         return _isLong
-            ? marketStorage[_id][keccak256(abi.encode(_ticker))].cumulatives.longCumulativeBorrowFees
-            : marketStorage[_id][keccak256(abi.encode(_ticker))].cumulatives.shortCumulativeBorrowFees;
+            ? marketStorage[_id].cumulatives.longCumulativeBorrowFees
+            : marketStorage[_id].cumulatives.shortCumulativeBorrowFees;
     }
 
-    function getFundingAccrued(MarketId _id, string memory _ticker) external view returns (int256) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].fundingAccruedUsd;
+    function getFundingAccrued(MarketId _id) external view returns (int256) {
+        return marketStorage[_id].fundingAccruedUsd;
     }
 
-    function getBorrowingRate(MarketId _id, string memory _ticker, bool _isLong) external view returns (uint256) {
+    function getBorrowingRate(MarketId _id, bool _isLong) external view returns (uint256) {
+        return _isLong ? marketStorage[_id].longBorrowingRate : marketStorage[_id].shortBorrowingRate;
+    }
+
+    function getMaintenanceMargin(MarketId _id) external view returns (uint256) {
+        return marketStorage[_id].config.maintenanceMargin;
+    }
+
+    function getMaxLeverage(MarketId _id) external view returns (uint8) {
+        return marketStorage[_id].config.maxLeverage;
+    }
+
+    function getOpenInterest(MarketId _id, bool _isLong) external view returns (uint256) {
+        return _isLong ? marketStorage[_id].longOpenInterest : marketStorage[_id].shortOpenInterest;
+    }
+
+    function getAverageCumulativeBorrowFee(MarketId _id, bool _isLong) external view returns (uint256) {
         return _isLong
-            ? marketStorage[_id][keccak256(abi.encode(_ticker))].longBorrowingRate
-            : marketStorage[_id][keccak256(abi.encode(_ticker))].shortBorrowingRate;
-    }
-
-    function getMaintenanceMargin(MarketId _id, string memory _ticker) external view returns (uint256) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].config.maintenanceMargin;
-    }
-
-    function getMaxLeverage(MarketId _id, string memory _ticker) external view returns (uint8) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].config.maxLeverage;
-    }
-
-    function getAllocation(MarketId _id, string memory _ticker) external view returns (uint8) {
-        return marketStorage[_id][keccak256(abi.encode(_ticker))].allocationShare;
-    }
-
-    function getOpenInterest(MarketId _id, string memory _ticker, bool _isLong) external view returns (uint256) {
-        return _isLong
-            ? marketStorage[_id][keccak256(abi.encode(_ticker))].longOpenInterest
-            : marketStorage[_id][keccak256(abi.encode(_ticker))].shortOpenInterest;
-    }
-
-    function getAverageCumulativeBorrowFee(MarketId _id, string memory _ticker, bool _isLong)
-        external
-        view
-        returns (uint256)
-    {
-        return _isLong
-            ? marketStorage[_id][keccak256(abi.encode(_ticker))].cumulatives.weightedAvgCumulativeLong
-            : marketStorage[_id][keccak256(abi.encode(_ticker))].cumulatives.weightedAvgCumulativeShort;
+            ? marketStorage[_id].cumulatives.weightedAvgCumulativeLong
+            : marketStorage[_id].cumulatives.weightedAvgCumulativeShort;
     }
 }

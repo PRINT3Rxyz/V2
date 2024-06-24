@@ -111,7 +111,6 @@ contract TestBorrowing is Test {
         vm.startPrank(OWNER);
         WETH(weth).deposit{value: 1_000_000 ether}();
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: true,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
@@ -171,7 +170,7 @@ contract TestBorrowing is Test {
      * f_current: The current cumulative fee on the market.
      * p: The proportion of the new position size relative to the total open interest.
      */
-    function getNextAverageCumulative(string memory _ticker, int256 _sizeDeltaUsd, bool _isLong)
+    function getNextAverageCumulative(int256 _sizeDeltaUsd, bool _isLong)
         public
         view
         returns (uint256 nextAverageCumulative)
@@ -179,12 +178,12 @@ contract TestBorrowing is Test {
         // Get the abs size delta
         uint256 absSizeDelta = _sizeDeltaUsd.abs();
         // Get the Open Interest
-        uint256 openInterestUsd = market.getOpenInterest(marketId, _ticker, _isLong);
+        uint256 openInterestUsd = market.getOpenInterest(marketId, _isLong);
         // Get the current cumulative fee on the market
-        uint256 currentCumulative = market.getCumulativeBorrowFee(marketId, _ticker, _isLong)
-            + Borrowing.calculatePendingFees(marketId, market, _ticker, _isLong);
+        uint256 currentCumulative =
+            market.getCumulativeBorrowFee(marketId, _isLong) + Borrowing.calculatePendingFees(marketId, market, _isLong);
         // Get the last weighted average entry cumulative fee
-        uint256 lastCumulative = market.getAverageCumulativeBorrowFee(marketId, _ticker, _isLong);
+        uint256 lastCumulative = market.getAverageCumulativeBorrowFee(marketId, _isLong);
         // If OI before is 0, or last cumulative = 0, return current cumulative
         if (openInterestUsd == 0 || lastCumulative == 0) return currentCumulative;
         // If Position is Decrease
@@ -267,7 +266,7 @@ contract TestBorrowing is Test {
             _collateral,
             positionSize,
             3000e30,
-            Position.FundingParams(market.getFundingAccrued(marketId, ethTicker), 0),
+            Position.FundingParams(market.getFundingAccrued(marketId), 0),
             Position.BorrowingParams(0, 0, 0),
             bytes32(0),
             bytes32(0)
@@ -282,8 +281,9 @@ contract TestBorrowing is Test {
         // Calculate Fees Owed
         uint256 feesOwed = Position.getTotalBorrowFees(marketId, market, position, borrowPrices);
         // Index Tokens == Collateral Tokens
-        uint256 expectedFees = (((market.getBorrowingRate(marketId, ethTicker, true) * 1 days) * positionSize) / 1e18)
-            .mulDiv(borrowPrices.collateralBaseUnit, borrowPrices.collateralPrice);
+        uint256 expectedFees = (((market.getBorrowingRate(marketId, true) * 1 days) * positionSize) / 1e18).mulDiv(
+            borrowPrices.collateralBaseUnit, borrowPrices.collateralPrice
+        );
         assertEq(feesOwed, expectedFees);
     }
 
@@ -306,7 +306,7 @@ contract TestBorrowing is Test {
             _collateral,
             positionSize,
             3000e30,
-            Position.FundingParams(market.getFundingAccrued(marketId, ethTicker), 0),
+            Position.FundingParams(market.getFundingAccrued(marketId), 0),
             Position.BorrowingParams(0, 1e18, 0), // Set entry cumulative to 1e18
             bytes32(0),
             bytes32(0)
@@ -317,7 +317,7 @@ contract TestBorrowing is Test {
 
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, true),
             abi.encode(1e18 + bonusCumulative) // Mock return value
         );
 
@@ -348,21 +348,20 @@ contract TestBorrowing is Test {
         cache.collateralPrice = _isLong ? 3000e30 : 1e30;
         cache.collateralBaseUnit = _isLong ? 1e18 : 1e6;
         cache.maxOi = MarketUtils.getMaxOpenInterest(
-            marketId, market, vault, ethTicker, cache.collateralPrice, cache.collateralBaseUnit, _isLong
+            marketId, market, vault, cache.collateralPrice, cache.collateralBaseUnit, _isLong
         );
         _openInterest = bound(_openInterest, 0, cache.maxOi);
 
         // Mock the open interest and available open interest on the market
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, ethTicker, _isLong),
+            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, _isLong),
             abi.encode(_openInterest) // Mock return value
         );
         // compare with the actual rate
 
-        cache.actualRate = Borrowing.calculateRate(
-            marketId, market, vault, ethTicker, cache.collateralPrice, cache.collateralBaseUnit, _isLong
-        );
+        cache.actualRate =
+            Borrowing.calculateRate(marketId, market, vault, cache.collateralPrice, cache.collateralBaseUnit, _isLong);
         // calculate the expected rate
         cache.expectedRate = MathUtils.mulDiv(market.getBorrowScale(marketId), _openInterest, cache.maxOi);
         // Check off by 1 for round down
@@ -386,22 +385,22 @@ contract TestBorrowing is Test {
         // mock the rate
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, true),
             abi.encode(_openInterest)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, true),
             abi.encode(_lastCumulative)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getAverageCumulativeBorrowFee.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getAverageCumulativeBorrowFee.selector, marketId, true),
             abi.encode(_prevAverageCumulative)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getBorrowingRate.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getBorrowingRate.selector, marketId, true),
             abi.encode(uint64(_borrowingRate))
         );
 
@@ -432,7 +431,7 @@ contract TestBorrowing is Test {
         }
 
         // test calculation value vs expected
-        uint256 nextAverageCumulative = getNextAverageCumulative(ethTicker, _sizeDelta, true);
+        uint256 nextAverageCumulative = getNextAverageCumulative(_sizeDelta, true);
         // assert eq
         assertEq(nextAverageCumulative, ev, "Unmatched Values");
     }
@@ -449,17 +448,17 @@ contract TestBorrowing is Test {
         // mock the previous cumulative
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getCumulativeBorrowFee.selector, marketId, true),
             abi.encode(_cumulativeFee)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getAverageCumulativeBorrowFee.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getAverageCumulativeBorrowFee.selector, marketId, true),
             abi.encode(_avgCumulativeFee)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, true),
             abi.encode(_openInterest)
         );
         // Assert Eq EV vs Actual

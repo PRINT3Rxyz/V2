@@ -27,7 +27,6 @@ interface IMarketFactory {
     error MarketFactory_FailedToAddRequest();
     error MarketFactory_InvalidSecondaryStrategy();
     error MarketFactory_MarketExists();
-    error MarketFactory_InvalidMultiAssetRequest();
 
     struct Request {
         Input input;
@@ -36,7 +35,6 @@ interface IMarketFactory {
     }
 
     struct Input {
-        bool isMultiAsset;
         string indexTokenTicker;
         string marketTokenName;
         string marketTokenSymbol;

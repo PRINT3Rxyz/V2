@@ -173,8 +173,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
         if (msg.value < marketCreationFee + priceUpdateFee) revert MarketFactory_InvalidFee();
 
-        if (_input.isMultiAsset && msg.sender != owner()) revert MarketFactory_InvalidMultiAssetRequest();
-
         _initializeAsset(_input, priceUpdateFee);
 
         requestKey = _getMarketRequestKey(msg.sender, _input.indexTokenTicker);
@@ -269,15 +267,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
         address vault = Deployer.deployVault(_params, WETH, USDC);
 
-        market.initializePool(
-            id,
-            defaultConfig,
-            _params.requester,
-            0.003e18,
-            vault,
-            _params.input.indexTokenTicker,
-            _params.input.isMultiAsset
-        );
+        market.initializePool(id, defaultConfig, _params.requester, 0.003e18, vault, _params.input.indexTokenTicker);
 
         IVault(vault).initialize(
             address(market),

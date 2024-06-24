@@ -22,7 +22,6 @@ contract CreateMarket is Script {
         });
 
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: true,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR-LP",
             marketTokenSymbol: "BRRR",

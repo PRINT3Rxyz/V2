@@ -403,16 +403,20 @@ library MarketUtils {
         return newAverageEntryPrice;
     }
 
-    function getMarketPnl(MarketId _id, address _market, string memory _ticker, uint256 _indexPrice, bool _isLong)
+    function getCumulativeMarketPnl(MarketId _id, address _market, uint256 _indexPrice) public view returns (int256) {
+        return getMarketPnl(_id, _market, _indexPrice, true) + getMarketPnl(_id, _market, _indexPrice, false);
+    }
+
+    function getMarketPnl(MarketId _id, address _market, uint256 _indexPrice, bool _isLong)
         public
         view
         returns (int256 netPnl)
     {
         IMarket market = IMarket(_market);
 
-        uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
+        uint256 openInterest = market.getOpenInterest(_id, _isLong);
 
-        uint256 averageEntryPrice = _getAverageEntryPrice(_id, market, _ticker, _isLong);
+        uint256 averageEntryPrice = _getAverageEntryPrice(_id, market, _isLong);
 
         if (openInterest == 0 || averageEntryPrice == 0) return 0;
 
@@ -425,42 +429,28 @@ library MarketUtils {
         }
     }
 
-    function getPoolBalance(MarketId _id, IMarket market, IVault vault, string memory _ticker, bool _isLong)
-        public
-        view
-        returns (uint256 poolAmount)
-    {
-        uint256 allocationShare = market.getAllocation(_id, _ticker);
-
-        uint256 totalAvailableLiquidity = vault.totalAvailableLiquidity(_isLong);
-
-        poolAmount = totalAvailableLiquidity.percentage(allocationShare, MAX_ALLOCATION);
+    function getPoolBalance(IVault vault, bool _isLong) public view returns (uint256 poolAmount) {
+        poolAmount = vault.totalAvailableLiquidity(_isLong);
     }
 
-    function getPoolBalanceUsd(
-        MarketId _id,
-        IMarket market,
-        IVault vault,
-        string memory _ticker,
-        uint256 _collateralTokenPrice,
-        uint256 _collateralBaseUnit,
-        bool _isLong
-    ) public view returns (uint256 poolUsd) {
-        poolUsd = getPoolBalance(_id, market, vault, _ticker, _isLong).toUsd(_collateralTokenPrice, _collateralBaseUnit);
+    function getPoolBalanceUsd(IVault vault, uint256 _collateralTokenPrice, uint256 _collateralBaseUnit, bool _isLong)
+        public
+        view
+        returns (uint256 poolUsd)
+    {
+        poolUsd = getPoolBalance(vault, _isLong).toUsd(_collateralTokenPrice, _collateralBaseUnit);
     }
 
     function validateAllocation(
         MarketId _id,
         IMarket market,
         IVault vault,
-        string memory _ticker,
         uint256 _sizeDeltaUsd,
         uint256 _indexPrice,
         uint256 _collateralTokenPrice,
         bool _isLong
     ) internal view {
-        uint256 availableUsd =
-            getAvailableOiUsd(_id, market, vault, _ticker, _indexPrice, _collateralTokenPrice, _isLong);
+        uint256 availableUsd = getAvailableOiUsd(_id, market, vault, _indexPrice, _collateralTokenPrice, _isLong);
 
         if (_sizeDeltaUsd > availableUsd) revert MarketUtils_MaxOiExceeded();
     }
@@ -469,20 +459,17 @@ library MarketUtils {
         MarketId _id,
         IMarket market,
         IVault vault,
-        string memory _ticker,
         uint256 _indexPrice,
         uint256 _collateralTokenPrice,
         bool _isLong
     ) internal view returns (uint256 availableOi) {
         uint256 collateralBaseUnit = _isLong ? LONG_BASE_UNIT : SHORT_BASE_UNIT;
 
-        uint256 remainingAllocationUsd =
-            getPoolBalanceUsd(_id, market, vault, _ticker, _collateralTokenPrice, collateralBaseUnit, _isLong);
+        uint256 remainingAllocationUsd = getPoolBalanceUsd(vault, _collateralTokenPrice, collateralBaseUnit, _isLong);
 
-        availableOi =
-            remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, market, _ticker));
+        availableOi = remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, market));
 
-        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _indexPrice, _isLong);
 
         // if the pnl is positive, subtract it from the available oi
         if (pnl > 0) {
@@ -500,16 +487,15 @@ library MarketUtils {
         MarketId _id,
         IMarket market,
         IVault vault,
-        string memory _ticker,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
     ) external view returns (uint256 maxOpenInterest) {
         uint256 totalAvailableLiquidity = vault.totalAvailableLiquidity(_isLong);
 
-        uint256 poolAmount = totalAvailableLiquidity.percentage(market.getAllocation(_id, _ticker), MAX_ALLOCATION);
+        uint256 poolAmount = totalAvailableLiquidity;
 
-        maxOpenInterest = (poolAmount - poolAmount.percentage(_getReserveFactor(_id, market, _ticker))).toUsd(
+        maxOpenInterest = (poolAmount - poolAmount.percentage(_getReserveFactor(_id, market))).toUsd(
             _collateralPrice, _collateralBaseUnit
         );
     }
@@ -519,19 +505,18 @@ library MarketUtils {
         MarketId _id,
         IMarket market,
         IVault vault,
-        string memory _ticker,
         uint256 _indexPrice,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
     ) internal view returns (int256 pnlFactor) {
-        uint256 poolUsd = getPoolBalanceUsd(_id, market, vault, _ticker, _collateralPrice, _collateralBaseUnit, _isLong);
+        uint256 poolUsd = getPoolBalanceUsd(vault, _collateralPrice, _collateralBaseUnit, _isLong);
 
         if (poolUsd == 0) {
             return 0;
         }
 
-        int256 pnl = getMarketPnl(_id, address(market), _ticker, _indexPrice, _isLong);
+        int256 pnl = getMarketPnl(_id, address(market), _indexPrice, _isLong);
 
         uint256 factor = pnl.abs().divWadUp(poolUsd);
 
@@ -548,16 +533,15 @@ library MarketUtils {
         MarketId _id,
         IMarket market,
         IVault vault,
-        string memory _ticker,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
     ) internal view returns (uint256 adlPrice) {
-        uint256 averageEntryPrice = _getAverageEntryPrice(_id, market, _ticker, _isLong);
+        uint256 averageEntryPrice = _getAverageEntryPrice(_id, market, _isLong);
 
-        uint256 openInterest = market.getOpenInterest(_id, _ticker, _isLong);
+        uint256 openInterest = market.getOpenInterest(_id, _isLong);
 
-        uint256 poolUsd = getPoolBalanceUsd(_id, market, vault, _ticker, _collateralPrice, _collateralBaseUnit, _isLong);
+        uint256 poolUsd = getPoolBalanceUsd(vault, _collateralPrice, _collateralBaseUnit, _isLong);
 
         uint256 maxProfit = poolUsd.percentage(MAX_PNL_FACTOR);
 
@@ -606,17 +590,13 @@ library MarketUtils {
     /**
      * =========================================== Private Functions ===========================================
      */
-    function _getAverageEntryPrice(MarketId _id, IMarket market, string memory _ticker, bool _isLong)
-        private
-        view
-        returns (uint256)
-    {
+    function _getAverageEntryPrice(MarketId _id, IMarket market, bool _isLong) private view returns (uint256) {
         return _isLong
-            ? market.getCumulatives(_id, _ticker).longAverageEntryPriceUsd
-            : market.getCumulatives(_id, _ticker).shortAverageEntryPriceUsd;
+            ? market.getCumulatives(_id).longAverageEntryPriceUsd
+            : market.getCumulatives(_id).shortAverageEntryPriceUsd;
     }
 
-    function _getReserveFactor(MarketId _id, IMarket market, string memory _ticker) private view returns (uint256) {
-        return market.getConfig(_id, _ticker).reserveFactor.expandDecimals(4, 18);
+    function _getReserveFactor(MarketId _id, IMarket market) private view returns (uint256) {
+        return market.getConfig(_id).reserveFactor.expandDecimals(4, 18);
     }
 }

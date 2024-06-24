@@ -178,9 +178,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         _decreasePosition(_id, vault, params, prices);
 
-        Execution.validateAdl(
-            _id, market, vault, prices, startingPnlFactor, params.request.input.ticker, params.request.input.isLong
-        );
+        Execution.validateAdl(_id, market, vault, prices, startingPnlFactor, params.request.input.isLong);
 
         emit AdlExecuted(
             _positionKey, MarketId.unwrap(_id), params.request.input.sizeDelta, params.request.input.isLong
@@ -525,7 +523,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         // Impact Pool Delta = -1 * Price Impact
         if (_prices.priceImpactUsd == 0) return;
 
-        market.updateImpactPool(_id, _ticker, -_prices.priceImpactUsd);
+        market.updateImpactPool(_id, -_prices.priceImpactUsd);
     }
 
     function _updateLiquidity(

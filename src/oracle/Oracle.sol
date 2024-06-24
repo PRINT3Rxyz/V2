@@ -135,28 +135,6 @@ library Oracle {
         }
     }
 
-    function constructMultiPriceArgs(MarketId marketId, IMarket market) internal view returns (string[] memory args) {
-        string memory timestamp = block.timestamp.toString();
-
-        string[] memory tickers = market.getTickers(marketId);
-
-        uint256 len = tickers.length;
-
-        args = new string[](len + 3);
-
-        args[0] = timestamp;
-        args[1] = LONG_TICKER;
-        args[2] = SHORT_TICKER;
-
-        for (uint8 i = 0; i < len;) {
-            args[i + 3] = tickers[i];
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
     /// @dev - Prepend the timestamp to the arguments before sending to the DON
     function constructPnlArguments(MarketId marketId) internal view returns (string[] memory args) {
         args = new string[](2);

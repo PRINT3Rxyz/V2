@@ -36,8 +36,6 @@ contract Router is ReentrancyGuard, OwnableRoles {
     IPositionManager private positionManager;
     IGlobalRewardTracker private rewardTracker;
 
-    string private constant LONG_TICKER = "ETH";
-    string private constant SHORT_TICKER = "USDC";
     uint64 private constant MAX_PERCENTAGE = 1e18;
 
     event DepositRequestCreated(MarketId indexed marketId, address owner, address tokenIn, uint256 amountIn);
@@ -345,21 +343,6 @@ contract Router is ReentrancyGuard, OwnableRoles {
         _requestPriceUpdate(updateFee, "");
         // Request the pnl update
         _requestPnlUpdate(_id, updateFee);
-    }
-
-    /**
-     * @dev Requests an update for all of the prices of the assets within a market.
-     *
-     * Used for requesting pricing before calling:
-     * 1. market.addToken
-     * 2. market.removeToken
-     * 3. market.reallocate
-     */
-    function requestPricingForMarket(MarketId _id) external payable returns (bytes32 priceRequestKey) {
-        uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
-        if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
-        string[] memory args = Oracle.constructMultiPriceArgs(_id, market);
-        priceRequestKey = priceFeed.requestPriceUpdate{value: msg.value}(args, msg.sender);
     }
 
     function requestPricingForAsset(string calldata _ticker) external payable returns (bytes32 priceRequestKey) {

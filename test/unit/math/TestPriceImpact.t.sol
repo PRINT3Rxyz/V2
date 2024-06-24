@@ -107,7 +107,6 @@ contract TestPriceImpact is Test {
         vm.startPrank(OWNER);
         WETH(weth).deposit{value: 1_000_000 ether}();
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: true,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
@@ -169,7 +168,6 @@ contract TestPriceImpact is Test {
         vm.startPrank(OWNER);
         WETH(weth).deposit{value: 1_000_000 ether}();
         IMarketFactory.Input memory input = IMarketFactory.Input({
-            isMultiAsset: false,
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
@@ -259,12 +257,12 @@ contract TestPriceImpact is Test {
 
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, ethTicker, true),
+            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, true),
             abi.encode(_test.longOi)
         );
         vm.mockCall(
             address(market),
-            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, ethTicker, false),
+            abi.encodeWithSelector(market.getOpenInterest.selector, marketId, false),
             abi.encode(_test.shortOi)
         );
         vm.mockCall(
