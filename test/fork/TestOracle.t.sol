@@ -29,7 +29,7 @@ import {PythStructs} from "@pyth/contracts/PythStructs.sol";
 import {IERC20Metadata} from "src/tokens/interfaces/IERC20Metadata.sol";
 import {Casting} from "src/libraries/Casting.sol";
 
-contract TestPositions is Test {
+contract TestOracle is Test {
     using LibString for bytes15;
     using Casting for int256;
     using Casting for int32;

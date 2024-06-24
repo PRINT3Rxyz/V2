@@ -47,6 +47,7 @@ interface IVault is IERC20 {
     );
     event FeesAccumulated(uint256 amount, bool isLong);
     event FeesWithdrawn(uint256 longFees, uint256 shortFees);
+    event Vault_HoldingTokens(address indexed user, address indexed amount, address indexed token);
 
     error Vault_AlreadyInitialized();
     error Vault_InsufficientAvailableTokens();
@@ -59,7 +60,8 @@ interface IVault is IERC20 {
         address _feeDistributor,
         address _rewardTracker,
         address _tradeEngine,
-        address _feeReceiver
+        address _feeReceiver,
+        uint256 _transferGasLimit
     ) external;
     function executeDeposit(ExecuteDeposit calldata _params, address _tokenIn, address _positionManager)
         external

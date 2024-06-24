@@ -24,7 +24,7 @@ import {IVault} from "src/markets/Vault.sol";
 import {LibString} from "src/libraries/LibString.sol";
 import {IERC20} from "src/tokens/interfaces/IERC20.sol";
 
-contract TestPositions is Test {
+contract TestPriceFeed is Test {
     using LibString for bytes15;
 
     MarketFactory marketFactory;

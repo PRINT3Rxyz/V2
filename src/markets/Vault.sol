@@ -17,6 +17,7 @@ import {Units} from "../libraries/Units.sol";
 
 contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
     using SafeTransferLib for IERC20;
+    using SafeTransferLib for IWETH;
     using SafeTransferLib for Vault;
     using Units for uint256;
 
@@ -31,6 +32,8 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
 
     address public poolOwner;
     address public feeReceiver;
+
+    uint256 public transferGasLimit;
 
     uint256 public longAccumulatedFees;
     uint256 public shortAccumulatedFees;
@@ -64,13 +67,15 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         address _feeDistributor,
         address _rewardTracker,
         address _tradeEngine,
-        address _feeReceiver
+        address _feeReceiver,
+        uint256 _transferGasLimit
     ) external onlyOwner {
         if (isInitialized) revert Vault_AlreadyInitialized();
         market = IMarket(_market);
         feeDistributor = IFeeDistributor(_feeDistributor);
         rewardTracker = IGlobalRewardTracker(_rewardTracker);
         feeReceiver = _feeReceiver;
+        transferGasLimit = _transferGasLimit;
         _grantRoles(_market, _ROLE_7);
         _grantRoles(_tradeEngine, _ROLE_6);
         isInitialized = true;
@@ -191,20 +196,22 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         IERC20(USDC).approve(distributor, shortLpFees);
         IFeeDistributor(distributor).accumulateFees(longLpFees, shortLpFees);
 
+        address holdingAddr = owner();
+
         if (remainingFeesLong > 0) {
             uint256 longConfiguratorFee = remainingFeesLong / 2;
 
-            IERC20(WETH).safeTransfer(poolOwner, longConfiguratorFee);
+            IERC20(WETH).sendTokensNoRevert(poolOwner, longConfiguratorFee, holdingAddr);
 
-            IERC20(WETH).safeTransfer(feeReceiver, remainingFeesLong - longConfiguratorFee);
+            IERC20(WETH).sendTokensNoRevert(feeReceiver, remainingFeesLong - longConfiguratorFee, holdingAddr);
         }
 
         if (remainingFeesShort > 0) {
             uint256 shortConfiguratorFee = remainingFeesShort / 2;
 
-            IERC20(USDC).safeTransfer(poolOwner, shortConfiguratorFee);
+            IERC20(USDC).sendTokensNoRevert(poolOwner, shortConfiguratorFee, holdingAddr);
 
-            IERC20(USDC).safeTransfer(feeReceiver, remainingFeesShort - shortConfiguratorFee);
+            IERC20(USDC).sendTokensNoRevert(feeReceiver, remainingFeesShort - shortConfiguratorFee, holdingAddr);
         }
 
         emit FeesWithdrawn(longFees, shortFees);
@@ -292,12 +299,12 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         if (_isLongToken) {
             if (_shouldUnwrap) {
                 IWETH(_tokenOut).withdraw(_amount);
-                SafeTransferLib.safeTransferETH(_to, _amount);
+                IWETH(_tokenOut).sendEthNoRevert(_to, _amount, transferGasLimit, owner());
             } else {
-                IERC20(_tokenOut).safeTransfer(_to, _amount);
+                IERC20(_tokenOut).sendTokensNoRevert(_to, _amount, owner());
             }
         } else {
-            IERC20(_tokenOut).safeTransfer(_to, _amount);
+            IERC20(_tokenOut).sendTokensNoRevert(_to, _amount, owner());
         }
     }
 

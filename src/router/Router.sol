@@ -121,14 +121,20 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         if (_amountIn == 0) revert Router_InvalidAmountIn();
 
+        uint256 excessValue;
+
         if (_shouldWrap) {
-            if (_amountIn > msg.value - _executionFee) revert Router_InvalidAmountIn();
+            if (_amountIn > msg.value - (_executionFee + totalPriceUpdateFee)) revert Router_InvalidAmountIn();
             if (_tokenIn != address(WETH)) revert Router_CantWrapUSDC();
+
+            excessValue = msg.value - (_executionFee + totalPriceUpdateFee + _amountIn);
 
             WETH.deposit{value: _amountIn}();
             WETH.safeTransfer(address(positionManager), _amountIn);
         } else {
             if (_tokenIn != address(USDC) && _tokenIn != address(WETH)) revert Router_InvalidTokenIn();
+
+            excessValue = msg.value - (_executionFee + totalPriceUpdateFee);
 
             IERC20(_tokenIn).safeTransferFrom(msg.sender, address(positionManager), _amountIn);
         }
@@ -153,6 +159,8 @@ contract Router is ReentrancyGuard, OwnableRoles {
         );
 
         _sendExecutionFee(_executionFee);
+
+        if (excessValue > 0) SafeTransferLib.safeTransferETH(msg.sender, excessValue);
 
         emit DepositRequestCreated(_id, _owner, _tokenIn, _amountIn);
     }

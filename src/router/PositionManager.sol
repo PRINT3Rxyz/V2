@@ -49,6 +49,8 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
     // Base Gas for a TX
     uint256 public baseGasLimit;
+    // Gas Limit for a Transfer
+    uint256 public transferGasLimit;
     // Upper Bounds to account for fluctuations
     uint256 public averageDepositCost;
     uint256 public averageWithdrawalCost;
@@ -84,11 +86,15 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
     receive() external payable {}
 
-    function updateGasEstimates(uint256 _base, uint256 _deposit, uint256 _withdrawal, uint256 _position)
-        external
-        onlyOwner
-    {
+    function updateGasEstimates(
+        uint256 _base,
+        uint256 _transfer,
+        uint256 _deposit,
+        uint256 _withdrawal,
+        uint256 _position
+    ) external onlyOwner {
         baseGasLimit = _base;
+        transferGasLimit = _transfer;
         averageDepositCost = _deposit;
         averageWithdrawalCost = _withdrawal;
         averagePositionCost = _position;
@@ -138,7 +144,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         SafeTransferLib.safeTransferETH(msg.sender, feeForExecutor);
         if (feeToRefund > 0) {
-            SafeTransferLib.safeTransferETH(params.deposit.owner, feeToRefund);
+            WETH.sendEthNoRevert(params.deposit.owner, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -172,7 +178,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         SafeTransferLib.safeTransferETH(msg.sender, feeForExecutor);
 
         if (feeToRefund > 0) {
-            SafeTransferLib.safeTransferETH(params.withdrawal.owner, feeToRefund);
+            WETH.sendEthNoRevert(params.withdrawal.owner, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -181,9 +187,9 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         if (shouldUnwrap) {
             WETH.withdraw(amountOut);
-            SafeTransferLib.safeTransferETH(msg.sender, amountOut);
+            WETH.sendEthNoRevert(msg.sender, amountOut, transferGasLimit, owner());
         } else {
-            IERC20(tokenOut).safeTransfer(msg.sender, amountOut);
+            IERC20(tokenOut).sendTokensNoRevert(msg.sender, amountOut, owner());
         }
         emit MarketRequestCancelled(_requestKey, msg.sender, tokenOut, amountOut);
     }
@@ -210,7 +216,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         SafeTransferLib.safeTransferETH(msg.sender, executionCost);
 
         if (feeToRefund > 0) {
-            SafeTransferLib.safeTransferETH(request.user, feeToRefund);
+            WETH.sendEthNoRevert(request.user, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -246,14 +252,14 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         tradeStorage.cancelOrderRequest(_id, _key, _isLimit);
 
-        IERC20(request.input.collateralToken).safeTransfer(request.user, request.input.collateralDelta);
+        IERC20(request.input.collateralToken).sendTokensNoRevert(request.user, request.input.collateralDelta, owner());
 
         (uint256 refundAmount, uint256 amountForExecutor) = Gas.getRefundForCancellation(request.input.executionFee);
 
         if (msg.sender == request.user) {
             SafeTransferLib.safeTransferETH(msg.sender, refundAmount + amountForExecutor);
         } else {
-            SafeTransferLib.safeTransferETH(request.user, refundAmount);
+            WETH.sendEthNoRevert(request.user, refundAmount, transferGasLimit, owner());
             SafeTransferLib.safeTransferETH(msg.sender, amountForExecutor);
         }
     }
@@ -283,7 +289,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         if (_feeForExecutor > 0) {
             transferAmount -= _feeForExecutor;
-            IERC20(_collateralToken).safeTransfer(_executor, _feeForExecutor);
+            IERC20(_collateralToken).sendTokensNoRevert(_executor, _feeForExecutor, owner());
         }
 
         if (_affiliateRebate > 0) {

@@ -59,7 +59,8 @@ interface IMarketFactory {
         address _feeDistributor,
         address _feeReceiver,
         uint256 _marketCreationFee,
-        uint256 _marketExecutionFee
+        uint256 _marketExecutionFee,
+        uint256 _defaultTransferGasLimit
     ) external;
     function setDefaultConfig(Pool.Config memory _defaultConfig) external;
     function updatePriceFeed(IPriceFeed _priceFeed) external;

@@ -73,6 +73,8 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     uint256 public marketExecutionFee;
     uint256 public priceSupportFee;
 
+    uint256 public defaultTransferGasLimit;
+
     uint256 public cumulativeMarketIndex;
 
     // Used to ensure the uniqueness of each request for Market Creation
@@ -95,7 +97,8 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         address _feeDistributor,
         address _feeReceiver,
         uint256 _marketCreationFee,
-        uint256 _marketExecutionFee
+        uint256 _marketExecutionFee,
+        uint256 _defaultTransferGasLimit
     ) external onlyOwner {
         if (isInitialized) revert MarketFactory_AlreadyInitialized();
         market = IMarket(_market);
@@ -109,6 +112,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         feeReceiver = _feeReceiver;
         marketCreationFee = _marketCreationFee;
         marketExecutionFee = _marketExecutionFee;
+        defaultTransferGasLimit = _defaultTransferGasLimit;
         isInitialized = true;
         emit MarketFactoryInitialized(_priceFeed);
     }
@@ -124,6 +128,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     function setDefaultConfig(Pool.Config memory _defaultConfig) external onlyOwner {
         defaultConfig = _defaultConfig;
         emit DefaultConfigSet();
+    }
+
+    function updateTransferGasLimit(uint256 _defaultTransferGasLimit) external onlyOwner {
+        defaultTransferGasLimit = _defaultTransferGasLimit;
     }
 
     function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {
@@ -272,7 +280,12 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         );
 
         IVault(vault).initialize(
-            address(market), address(feeDistributor), address(rewardTracker), address(tradeEngine), feeReceiver
+            address(market),
+            address(feeDistributor),
+            address(rewardTracker),
+            address(tradeEngine),
+            feeReceiver,
+            defaultTransferGasLimit
         );
 
         ITradeStorage(tradeStorage).initializePool(id, vault);

@@ -286,7 +286,8 @@ contract Deploy is Script {
             address(contracts.feeDistributor),
             msg.sender,
             0.01 ether,
-            0.005 ether
+            0.005 ether,
+            21000
         );
 
         contracts.marketFactory.setFeedValidators(activeNetworkConfig.contracts.pyth);
@@ -332,7 +333,8 @@ contract Deploy is Script {
         );
         contracts.tradeEngine.grantRoles(address(contracts.tradeStorage), _ROLE_4);
 
-        contracts.positionManager.updateGasEstimates(1 gwei, 1 gwei, 1 gwei, 1 gwei);
+        // Need to update estimates based on historical data
+        contracts.positionManager.updateGasEstimates(1 gwei, 21000, 1 gwei, 1 gwei, 1 gwei);
 
         contracts.referralStorage.setTier(0, 0.05e18);
         contracts.referralStorage.setTier(1, 0.1e18);
