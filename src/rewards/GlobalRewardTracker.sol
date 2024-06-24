@@ -224,8 +224,21 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         (wethTokensPerInterval, usdcTokensPerInterval) = IFeeDistributor(distributor).tokensPerInterval(_depositToken);
     }
 
+    function getAllClaimableRewards(address _account) external view returns (uint256 wethAmount, uint256 usdcAmount) {
+        address[] memory depositTokens = userDepositTokens[_account].values();
+        uint256 len = depositTokens.length;
+        for (uint256 i = 0; i < len;) {
+            (uint256 wethReward, uint256 usdcReward) = claimable(_account, depositTokens[i]);
+            wethAmount += wethReward;
+            usdcAmount += usdcReward;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function claimable(address _account, address _depositToken)
-        external
+        public
         view
         returns (uint256 wethAmount, uint256 usdcAmount)
     {
