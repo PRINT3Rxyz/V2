@@ -192,6 +192,18 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         _unlock(msg.sender, _lockKeys);
     }
 
+    function claimAllRewards(address _receiver) external nonReentrant {
+        if (inPrivateClaimingMode) revert RewardTracker_ActionDisbaled();
+        address[] memory depositTokens = userDepositTokens[msg.sender].values();
+        uint256 len = depositTokens.length;
+        for (uint256 i = 0; i < len;) {
+            _claim(msg.sender, depositTokens[i], _receiver);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function claim(address _depositToken, address _receiver)
         external
         nonReentrant
