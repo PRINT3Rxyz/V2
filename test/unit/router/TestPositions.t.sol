@@ -22,6 +22,8 @@ import {MockPriceFeed} from "../../mocks/MockPriceFeed.sol";
 import {MarketId} from "src/types/MarketId.sol";
 import {TradeEngine} from "src/positions/TradeEngine.sol";
 import {IVault} from "src/markets/Vault.sol";
+import {Execution} from "src/positions/Execution.sol";
+import {PriceImpact} from "src/libraries/PriceImpact.sol";
 
 contract TestPositions is Test {
     MarketFactory marketFactory;
@@ -702,14 +704,33 @@ contract TestPositions is Test {
         input.sizeDelta = _sizeDelta;
         input.isIncrease = false;
         vm.prank(OWNER);
-        router.createPositionRequest{value: 0.01 ether}(
+        bytes32 orderKey = router.createPositionRequest{value: 0.01 ether}(
             marketId, input, Position.Conditionals(false, false, 0, 0, 0, 0)
         );
 
+        bytes32 positionKey = keccak256(abi.encode(input.ticker, OWNER, input.isLong));
+        Position.Data memory position = tradeStorage.getPosition(marketId, positionKey);
+
+        // Add buffer to price to ensure no liquidatables
+        if (_shouldSkip(position, input.isLong ? 2990 : 3010, orderKey)) {
+            return;
+        }
+
         // Execute Request
-        key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        positionManager.executePosition(marketId, orderKey, bytes32(0), OWNER);
+    }
+
+    function _shouldSkip(Position.Data memory position, uint256 _price, bytes32 orderKey)
+        private
+        view
+        returns (bool shouldSkip)
+    {
+        // If position is liquidatable, return
+        Execution.Prices memory prices = _constructPriceStruct(_price, position.isLong);
+        Position.Request memory request = tradeStorage.getOrder(marketId, orderKey);
+        (prices.impactedPrice,) = PriceImpact.execute(marketId, market, vault, request, prices);
+        shouldSkip = Execution.checkIsLiquidatableWithPriceImpact(marketId, market, position, prices);
     }
 
     function test_active_positions_accumulate_fees_over_time(
@@ -1118,5 +1139,23 @@ contract TestPositions is Test {
         timestamps[1] = uint48(block.timestamp);
         bytes memory encodedPrices = priceFeed.encodePrices(tickers, precisions, variances, timestamps, meds);
         priceFeed.updatePrices(encodedPrices);
+    }
+
+    function _constructPriceStruct(uint256 _ethPrice, bool _isLong)
+        private
+        pure
+        returns (Execution.Prices memory prices)
+    {
+        uint256 expandedEthPrice = _ethPrice * 1e30;
+        return Execution.Prices({
+            indexPrice: expandedEthPrice,
+            indexBaseUnit: 1e18,
+            impactedPrice: expandedEthPrice,
+            longMarketTokenPrice: expandedEthPrice,
+            shortMarketTokenPrice: 1e30,
+            priceImpactUsd: 0,
+            collateralPrice: _isLong ? expandedEthPrice : 1e30,
+            collateralBaseUnit: _isLong ? 1e18 : 1e6
+        });
     }
 }

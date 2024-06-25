@@ -491,7 +491,7 @@ library Execution {
 
         int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
 
-        if (losses < 0 && losses.abs() > maintenanceCollateral) {
+        if (losses < 0 && losses.abs() >= maintenanceCollateral) {
             isLiquidatable = true;
         } else {
             isLiquidatable = false;
@@ -521,7 +521,7 @@ library Execution {
 
         int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
 
-        if (losses < 0 && losses.abs() > maintenanceCollateral) {
+        if (losses < 0 && losses.abs() >= maintenanceCollateral) {
             isLiquidatable = true;
         } else {
             isLiquidatable = false;

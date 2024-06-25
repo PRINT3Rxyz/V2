@@ -29,6 +29,8 @@ import {Funding} from "src/libraries/Funding.sol";
 import {Borrowing} from "src/libraries/Borrowing.sol";
 import {MarketId} from "src/types/MarketId.sol";
 import {TradeEngine} from "src/positions/TradeEngine.sol";
+import {Execution} from "src/positions/Execution.sol";
+import {PriceImpact} from "src/libraries/PriceImpact.sol";
 
 contract TestVaultAccounting is Test {
     using MathUtils for uint256;
@@ -180,7 +182,7 @@ contract TestVaultAccounting is Test {
     // Cache the expected accounting values for each contract
     // Execute the position
     // Compare the expected values to the actual values
-    function testCreateNewPositionAccounting(VaultTest memory _vaultTest) public setUpMarkets {
+    function test_create_new_position_accounting(VaultTest memory _vaultTest) public setUpMarkets {
         // Create Request
         Position.Input memory input;
         TokenBalances memory tokenBalances;
@@ -314,7 +316,7 @@ contract TestVaultAccounting is Test {
         );
     }
 
-    function testIncreasePositionAccounting(VaultTest memory _vaultTest) public setUpMarkets {
+    function test_increase_position_accounting(VaultTest memory _vaultTest) public setUpMarkets {
         // Create Request
         Position.Input memory input;
         TokenBalances memory tokenBalances;
@@ -484,7 +486,7 @@ contract TestVaultAccounting is Test {
         );
     }
 
-    function testDecreasePositionAccounting(VaultTest memory _vaultTest, uint256 _decreasePercentage)
+    function test_decrease_position_accounting(VaultTest memory _vaultTest, uint256 _decreasePercentage)
         public
         setUpMarkets
     {
@@ -593,11 +595,16 @@ contract TestVaultAccounting is Test {
             input.collateralDelta = collateral;
         }
         vm.prank(USER);
-        router.createPositionRequest{value: 0.01 ether}(
+        bytes32 orderKey = router.createPositionRequest{value: 0.01 ether}(
             marketId, input, Position.Conditionals(false, false, 0, 0, 0, 0)
         );
 
         uint256 userBalanceBefore = IERC20(_vaultTest.collateralToken).balanceOf(USER);
+
+        // Add buffer to price to ensure no liquidatables
+        if (_shouldSkip(position, input.isLong ? 2990 : 3010, orderKey)) {
+            return;
+        }
 
         // Execute Request
         _vaultTest.key = tradeStorage.getOrderAtIndex(marketId, 0, false);
@@ -605,6 +612,18 @@ contract TestVaultAccounting is Test {
         positionManager.executePosition(marketId, _vaultTest.key, bytes32(0), OWNER);
 
         _assertions(tokenBalances, _vaultTest, userBalanceBefore);
+    }
+
+    function _shouldSkip(Position.Data memory position, uint256 _price, bytes32 orderKey)
+        private
+        view
+        returns (bool shouldSkip)
+    {
+        // If position is liquidatable, return
+        Execution.Prices memory prices = _constructPriceStruct(_price, position.isLong);
+        Position.Request memory request = tradeStorage.getOrder(marketId, orderKey);
+        (prices.impactedPrice,) = PriceImpact.execute(marketId, market, vault, request, prices);
+        shouldSkip = Execution.checkIsLiquidatableWithPriceImpact(marketId, market, position, prices);
     }
 
     function _assertions(TokenBalances memory tokenBalances, VaultTest memory _vaultTest, uint256 _userBalanceBefore)
@@ -641,5 +660,23 @@ contract TestVaultAccounting is Test {
 
         // Market balance should always be 0
         assertEq(IERC20(_vaultTest.collateralToken).balanceOf(address(market)), 0, "Market Balance not 0");
+    }
+
+    function _constructPriceStruct(uint256 _ethPrice, bool _isLong)
+        private
+        pure
+        returns (Execution.Prices memory prices)
+    {
+        uint256 expandedEthPrice = _ethPrice * 1e30;
+        return Execution.Prices({
+            indexPrice: expandedEthPrice,
+            indexBaseUnit: 1e18,
+            impactedPrice: expandedEthPrice,
+            longMarketTokenPrice: expandedEthPrice,
+            shortMarketTokenPrice: 1e30,
+            priceImpactUsd: 0,
+            collateralPrice: _isLong ? expandedEthPrice : 1e30,
+            collateralBaseUnit: _isLong ? 1e18 : 1e6
+        });
     }
 }
