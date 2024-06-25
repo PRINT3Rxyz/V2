@@ -196,6 +196,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         if (position.user == address(0)) revert TradeEngine_PositionDoesNotExist();
 
+        if (position.user == _liquidator) revert TradeEngine_InvalidCaller();
+
         uint48 requestTimestamp = priceFeed.getRequestTimestamp(_requestKey);
         Execution.validatePriceRequest(priceFeed, _liquidator, _requestKey);
 
