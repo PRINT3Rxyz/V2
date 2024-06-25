@@ -63,6 +63,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     error TradeEngine_InvalidCaller();
     error TradeEngine_AlreadyInitialized();
     error TradeEngine_PositionNotLiquidatable();
+    error TradeEngine_InvalidLiquidationMethod();
 
     ITradeStorage tradeStorage;
     IMarket market;
@@ -140,6 +141,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         tradeStorage.deleteOrder(_id, _params.orderKey, _params.request.input.isLimit);
 
+        // @audit - Need to handle case where it's a decrease and size delta changes after this
         _updateMarketState(
             _id,
             prices,
@@ -155,8 +157,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         } else if (_params.request.requestType == Position.RequestType.POSITION_INCREASE) {
             feeState = _increasePosition(_id, vault, _params, prices);
         } else {
-            // Decrease, SL & TP
-            feeState = _decreasePosition(_id, vault, _params, prices);
+            // Decrease, SL & TP -> Liquidation not permitted here
+            feeState = _decreasePosition(_id, vault, _params, prices, false);
         }
 
         return (feeState, _params.request);
@@ -176,7 +178,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
             _id, prices, params.request.input.ticker, params.request.input.sizeDelta, params.request.input.isLong, false
         );
 
-        _decreasePosition(_id, vault, params, prices);
+        // It's possible that Positions being ADLd are liquidatable, so allowLiquidations is set to false.
+        _decreasePosition(_id, vault, params, prices, false);
 
         Execution.validateAdl(_id, market, vault, prices, startingPnlFactor, params.request.input.isLong);
 
@@ -196,8 +199,6 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         if (position.user == address(0)) revert TradeEngine_PositionDoesNotExist();
 
-        if (position.user == _liquidator) revert TradeEngine_InvalidCaller();
-
         uint48 requestTimestamp = priceFeed.getRequestTimestamp(_requestKey);
         Execution.validatePriceRequest(priceFeed, _liquidator, _requestKey);
 
@@ -214,7 +215,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         Position.Settlement memory params =
             Position.createLiquidationOrder(position, prices.collateralPrice, prices.collateralBaseUnit, _liquidator);
 
-        _decreasePosition(_id, vault, params, prices);
+        _decreasePosition(_id, vault, params, prices, true);
 
         _liquidatePositionEvent(_id, _positionKey, position, prices.indexPrice, params.request.input.collateralDelta);
     }
@@ -311,7 +312,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         MarketId _id,
         IVault vault,
         Position.Settlement memory _params,
-        Execution.Prices memory _prices
+        Execution.Prices memory _prices,
+        bool _allowLiquidation
     ) private returns (Execution.FeeState memory feeState) {
         bytes32 positionKey = Position.generateKey(_params.request);
 
@@ -350,6 +352,8 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         );
 
         if (feeState.isLiquidation) {
+            // Decreases aren't possible on liquidatable positions, to avoid incorrect state updates.
+            if (!_allowLiquidation) revert TradeEngine_InvalidLiquidationMethod();
             feeState = _handleLiquidation(_id, vault, position, feeState, _prices, positionKey, _params.request.user);
         } else if (isCollateralEdit) {
             _handleCollateralDecrease(

@@ -39,19 +39,7 @@ contract LiquidationHandler is BaseHandler {
         address payable _vault,
         address _priceFeed,
         MarketId _marketId
-    ) BaseHandler(_weth, _usdc, _router, _positionManager, _tradeStorage, _market, _vault, _priceFeed, _marketId) {
-        weth = _weth;
-        vm.label(weth, "weth");
-        usdc = _usdc;
-        vm.label(usdc, "usdc");
-        router = Router(_router);
-        positionManager = PositionManager(_positionManager);
-        tradeStorage = TradeStorage(_tradeStorage);
-        market = Market(_market);
-        priceFeed = MockPriceFeed(_priceFeed);
-        vault = Vault(_vault);
-        marketId = _marketId;
-    }
+    ) BaseHandler(_weth, _usdc, _router, _positionManager, _tradeStorage, _market, _vault, _priceFeed, _marketId) {}
 
     function createIncreasePosition(
         uint256 _seed,
@@ -193,9 +181,6 @@ contract LiquidationHandler is BaseHandler {
         for (uint256 i = 0; i < keys.length; i++) {
             bytes32 key = keys[i];
             Position.Data memory position = tradeStorage.getPosition(marketId, key);
-            console2.log("LiquidatablePosition is Long? ", position.isLong);
-            console2.log("LiquidatablePosition Entry Price? ", position.weightedAvgEntryPrice);
-            console2.log("Current ETH Price: ", _ethPrice);
             Execution.Prices memory prices = _constructPriceStruct(_ethPrice, position.isLong);
             if (Execution.checkIsLiquidatable(marketId, market, position, prices)) {
                 return key;

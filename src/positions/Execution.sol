@@ -162,8 +162,14 @@ library Execution {
         uint256 percentageToAdl = Position.calculateAdlPercentage(absPnlFactor, pnl, _position.size);
 
         uint256 poolUsd = _getPoolUsd(vault, prices, _position.isLong);
+
         prices.impactedPrice = _executeAdlImpact(
-            prices.indexPrice, _position.weightedAvgEntryPrice, pnl.abs(), poolUsd, absPnlFactor, _position.isLong
+            prices.indexPrice,
+            _position.weightedAvgEntryPrice,
+            pnl.abs().percentage(percentageToAdl),
+            poolUsd,
+            absPnlFactor,
+            _position.isLong
         );
 
         prices.priceImpactUsd = 0;
@@ -366,15 +372,20 @@ library Execution {
             );
         }
 
-        uint256 losses = feeState.borrowFee + feeState.positionFee + feeState.feeForExecutor + feeState.affiliateRebate;
+        // Negative losses indicates overall gain, and vice-versa
+        int256 losses =
+            (feeState.borrowFee + feeState.positionFee + feeState.feeForExecutor + feeState.affiliateRebate).toInt256();
 
-        if (feeState.realizedPnl < 0) losses += feeState.realizedPnl.abs();
-
-        if (feeState.fundingFee < 0) losses += feeState.fundingFee.abs();
+        // Signs are flipped to convert them to their negative
+        losses += -feeState.realizedPnl;
+        losses += -feeState.fundingFee;
 
         uint256 maintenanceCollateral = _getMaintenanceCollateral(_id, market, position);
 
-        if (losses.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit) >= maintenanceCollateral) {
+        if (
+            losses > 0
+                && losses.abs().toUsd(_prices.collateralPrice, _prices.collateralBaseUnit) >= maintenanceCollateral
+        ) {
             (_params, feeState) =
                 _initiateLiquidation(_params, _prices, feeState, position.size, position.collateral, _alternativeFee);
         } else {
@@ -470,6 +481,36 @@ library Execution {
     {
         int256 pnl = Position.getPositionPnl(
             _position.size, _position.weightedAvgEntryPrice, _prices.indexPrice, _prices.indexBaseUnit, _position.isLong
+        );
+
+        uint256 maintenanceCollateral = _getMaintenanceCollateral(_id, market, _position);
+
+        uint256 borrowingFeesUsd = Position.getTotalBorrowFeesUsd(_id, market, _position);
+
+        int256 fundingFeesUsd = Position.getTotalFundingFees(_id, market, _position, _prices.indexPrice);
+
+        int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
+
+        if (losses < 0 && losses.abs() > maintenanceCollateral) {
+            isLiquidatable = true;
+        } else {
+            isLiquidatable = false;
+        }
+    }
+
+    // Checks if a position is liquidatable with a price impact applied to the pnl
+    function checkIsLiquidatableWithPriceImpact(
+        MarketId _id,
+        IMarket market,
+        Position.Data memory _position,
+        Prices memory _prices
+    ) public view returns (bool isLiquidatable) {
+        int256 pnl = Position.getPositionPnl(
+            _position.size,
+            _position.weightedAvgEntryPrice,
+            _prices.impactedPrice,
+            _prices.indexBaseUnit,
+            _position.isLong
         );
 
         uint256 maintenanceCollateral = _getMaintenanceCollateral(_id, market, _position);

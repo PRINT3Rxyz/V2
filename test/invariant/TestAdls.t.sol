@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import {LiquidationHandler} from "./handlers/LiquidationHandler.sol";
+import {AdlHandler} from "./handlers/AdlHandler.sol";
 import {Deploy} from "script/Deploy.s.sol";
 import {MarketFactory, IMarketFactory} from "src/factory/MarketFactory.sol";
 import {MockPriceFeed, IPriceFeed} from "test/mocks/MockPriceFeed.sol";
@@ -19,8 +19,8 @@ import {MarketId} from "src/types/MarketId.sol";
 import {MockUSDC} from "test/mocks/MockUSDC.sol";
 import {WETH} from "src/tokens/WETH.sol";
 
-contract TestLiquidations is Test {
-    LiquidationHandler handler;
+contract TestADLs is Test {
+    AdlHandler handler;
 
     MarketFactory marketFactory;
     MockPriceFeed priceFeed; // Deployed in Helper Config
@@ -151,7 +151,7 @@ contract TestLiquidations is Test {
         vm.stopPrank();
 
         // Set up the handler and set it as the target
-        handler = new LiquidationHandler(
+        handler = new AdlHandler(
             weth,
             usdc,
             payable(address(router)),
@@ -166,6 +166,6 @@ contract TestLiquidations is Test {
         targetContract(address(handler));
     }
 
-    /// @dev - Test that liquidatable positions are always liquidatable
-    function invariant_test_liquidations() public {}
+    /// @dev - Test that ADLs can always occur on overheated markets
+    // function invariant_test_adls() public {}
 }
