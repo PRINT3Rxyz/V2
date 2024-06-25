@@ -346,8 +346,13 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
                 uint64(bytes8(encodedPrice << 192))
             );
 
-            // Store the constructed price struct in the mapping
-            prices[price.ticker.fromSmallString()][price.timestamp] = price;
+            if (!Oracle.validatePrice(this, price)) return;
+
+            string memory ticker = price.ticker.fromSmallString();
+
+            prices[ticker][price.timestamp] = price;
+
+            emit PriceUpdated(ticker, price.timestamp, price.med, price.variance);
 
             unchecked {
                 ++i;
@@ -377,6 +382,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         if (pnlValue & MSB1 != 0) {
             // If msb is 1, this indicates the number is negative.
             // In this case, we flip all of the bits and add 1 to convert from +ve to -ve
+            // Can revert if pnl value is type(int128).max
             pnl.cumulativePnl = -int128(~pnlValue + 1);
         } else {
             // If msb is 0, the value is positive, so we convert and return as is.

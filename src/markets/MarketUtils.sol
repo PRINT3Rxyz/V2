@@ -429,16 +429,12 @@ library MarketUtils {
         }
     }
 
-    function getPoolBalance(IVault vault, bool _isLong) public view returns (uint256 poolAmount) {
-        poolAmount = vault.totalAvailableLiquidity(_isLong);
-    }
-
     function getPoolBalanceUsd(IVault vault, uint256 _collateralTokenPrice, uint256 _collateralBaseUnit, bool _isLong)
         public
         view
         returns (uint256 poolUsd)
     {
-        poolUsd = getPoolBalance(vault, _isLong).toUsd(_collateralTokenPrice, _collateralBaseUnit);
+        poolUsd = vault.totalAvailableLiquidity(_isLong).toUsd(_collateralTokenPrice, _collateralBaseUnit);
     }
 
     function validateAllocation(

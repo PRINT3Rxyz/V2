@@ -20,10 +20,14 @@ import {Vault} from "src/markets/Vault.sol";
 import {Casting} from "src/libraries/Casting.sol";
 import {Units} from "src/libraries/Units.sol";
 import {BaseHandler} from "./BaseHandler.sol";
+import {EnumerableSetLib} from "src/libraries/EnumerableSetLib.sol";
 
-contract PositionHandler is BaseHandler {
+contract LiquidationHandler is BaseHandler {
     using Casting for uint256;
     using Units for uint256;
+    using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
+
+    EnumerableSetLib.Bytes32Set private positionKeys;
 
     constructor(
         address _weth,
@@ -64,7 +68,13 @@ contract PositionHandler is BaseHandler {
         _deal(owner);
 
         _price = bound(_price, 500, 10_000);
+        // make sure executor is the one who updates the price
+        vm.startPrank(owner);
         _updateEthPrice(_price);
+        vm.stopPrank();
+
+        // Price isn't being updated properly on the contract.
+        console2.log("Current Expected Price: ", _price);
 
         uint256 availUsd = _getAvailableOi(_price * 1e30, _isLong);
         if (availUsd < 210e30) return;
@@ -72,7 +82,7 @@ contract PositionHandler is BaseHandler {
 
         // Create Request
         Position.Input memory input;
-        _leverage = bound(_leverage, 2, 90);
+        _leverage = bound(_leverage, 2, 40);
         bytes32 key;
         if (_isLong) {
             uint256 collateralDelta = MathUtils.mulDiv(_sizeDelta / _leverage, 1e18, (_price * 1e30));
@@ -133,119 +143,82 @@ contract PositionHandler is BaseHandler {
         // Execute Request
         vm.prank(owner);
         positionManager.executePosition(marketId, key, bytes32(0), owner);
+
+        bytes32 positionKey = keccak256(abi.encode(input.ticker, owner, input.isLong));
+
+        if (!positionKeys.contains(positionKey)) {
+            positionKeys.add(positionKey);
+        }
     }
 
     /**
-     * For Decrease:
-     * 1. Position should still be valid after (collateral > 2e30, lev 1-100)
-     * 2. Collateral delta should be enough to cover fees
+     * Check if any of the open positions are liquidatable after updating the prices
+     * If they are liquidatable, liquidate them
+     * Assert with a hook that the liquidator got the liquidation rewards and that
+     * the position no longer exists.
      */
-    function createDecreasePosition(
-        uint256 _seed,
-        uint256 _timeToSkip,
-        uint256 _price,
-        uint256 _decreasePercentage,
-        bool _isLong
-    ) external passTime(_timeToSkip) {
+    function liquidatePostion(uint256 _seed, uint256 _price, uint256 _timeToSkip) external passTime(_timeToSkip) {
         // Pre-Conditions
         address owner = randomAddress(_seed);
 
         _deal(owner);
 
-        Position.Data memory position =
-            tradeStorage.getPosition(marketId, Position.generateKey(ethTicker, owner, _isLong));
-
-        // Check if position exists
-        if (position.size == 0) return;
-
         _price = bound(_price, 500, 10_000);
+        // make sure executor is the one who updates the price
+        vm.startPrank(owner);
         _updateEthPrice(_price);
+        vm.stopPrank();
 
-        _decreasePercentage = bound(_decreasePercentage, 0.01e18, 1e18);
+        bytes32 key = _scanLiquidatablePositions(_price);
 
-        uint256 sizeDelta = position.size.percentage(_decreasePercentage);
+        if (key == bytes32(0)) return;
 
-        // If fees exceed collateral delta, increase
-        uint256 collateralDelta = position.collateral.percentage(_decreasePercentage);
+        bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
 
-        // Get total fees owed by the position
-        uint256 totalFees = _getTotalFeesOwed(owner, _isLong);
+        address requester = priceFeed.getRequester(requestKey);
 
-        int256 pnl = _getPnl(position, sizeDelta);
+        vm.deal(requester, 0.01 ether);
 
-        uint256 freeLiq = _getFreeLiquidityWithBuffer(_isLong);
+        vm.prank(requester);
+        positionManager.liquidatePosition(marketId, key, requestKey);
 
-        // Skip the case where PNL exceeds the available payout
-        if (pnl > freeLiq.toInt256()) return;
+        positionKeys.remove(key);
+    }
 
-        // Full decrease if size after decrease is less than 2e30 or fees exceed collateral delta
-        if (position.size - sizeDelta < 2e30 || totalFees >= collateralDelta) {
-            sizeDelta = position.size;
+    // Loop through the current positions keys and check if any of them are liquidatable.
+    // As soon as a liquidatable position is discovered, return the key of the liquidatable position.
+    // If none are discovered, return bytes32(0).
+    function _scanLiquidatablePositions(uint256 _ethPrice) internal view returns (bytes32 liquidatableKey) {
+        bytes32[] memory keys = positionKeys.values();
+        for (uint256 i = 0; i < keys.length; i++) {
+            bytes32 key = keys[i];
+            Position.Data memory position = tradeStorage.getPosition(marketId, key);
+            console2.log("LiquidatablePosition is Long? ", position.isLong);
+            console2.log("LiquidatablePosition Entry Price? ", position.weightedAvgEntryPrice);
+            console2.log("Current ETH Price: ", _ethPrice);
+            Execution.Prices memory prices = _constructPriceStruct(_ethPrice, position.isLong);
+            if (Execution.checkIsLiquidatable(marketId, market, position, prices)) {
+                return key;
+            }
         }
+        return bytes32(0);
+    }
 
-        Position.Input memory input = Position.Input({
-            ticker: ethTicker,
-            collateralToken: _isLong ? weth : usdc,
-            collateralDelta: 0,
-            sizeDelta: sizeDelta,
-            limitPrice: 0,
-            maxSlippage: 0.3e30,
-            executionFee: 0.01 ether,
-            isLong: _isLong,
-            isLimit: false,
-            isIncrease: false,
-            reverseWrap: false,
-            triggerAbove: false
+    function _constructPriceStruct(uint256 _ethPrice, bool _isLong)
+        private
+        pure
+        returns (Execution.Prices memory prices)
+    {
+        uint256 expandedEthPrice = _ethPrice * 1e30;
+        return Execution.Prices({
+            indexPrice: expandedEthPrice,
+            indexBaseUnit: 1e18,
+            impactedPrice: expandedEthPrice,
+            longMarketTokenPrice: expandedEthPrice,
+            shortMarketTokenPrice: 1e30,
+            priceImpactUsd: 0,
+            collateralPrice: _isLong ? expandedEthPrice : 1e30,
+            collateralBaseUnit: _isLong ? 1e18 : 1e6
         });
-
-        vm.prank(owner);
-        bytes32 orderKey = router.createPositionRequest{value: 0.01 ether}(
-            marketId, input, Position.Conditionals(false, false, 0, 0, 0, 0)
-        );
-
-        // Execute Request
-        vm.prank(owner);
-        positionManager.executePosition(marketId, orderKey, bytes32(0), owner);
-    }
-
-    /**
-     * =================================== Internal Functions ===================================
-     */
-    function _getTotalFeesOwed(address _owner, bool _isLong) private view returns (uint256) {
-        bytes32 positionKey = Position.generateKey(ethTicker, _owner, _isLong);
-        Position.Data memory position = tradeStorage.getPosition(marketId, positionKey);
-        uint256 indexPrice = uint256(meds[0]) * (1e30);
-
-        Execution.Prices memory prices;
-        prices.indexPrice = indexPrice;
-        prices.indexBaseUnit = 1e18;
-        prices.impactedPrice = indexPrice;
-        prices.longMarketTokenPrice = indexPrice;
-        prices.shortMarketTokenPrice = 1e30;
-        prices.priceImpactUsd = 0;
-        prices.collateralPrice = _isLong ? indexPrice : 1e30;
-        prices.collateralBaseUnit = _isLong ? 1e18 : 1e6;
-
-        return Position.getTotalFeesOwedUsd(marketId, market, position, prices.indexPrice);
-    }
-
-    function _getPnl(Position.Data memory _position, uint256 _sizeDelta) private view returns (int256) {
-        uint256 indexPrice = uint256(meds[0]) * 1e30;
-        return Position.getRealizedPnl(
-            _position.size,
-            _sizeDelta,
-            _position.weightedAvgEntryPrice,
-            indexPrice,
-            1e18,
-            indexPrice,
-            1e18,
-            _position.isLong
-        );
-    }
-
-    function _getFreeLiquidityWithBuffer(bool _isLong) private view returns (uint256) {
-        uint256 freeLiquidity = vault.totalAvailableLiquidity(_isLong);
-        // 40% buffer
-        return (freeLiquidity * 6) / 10;
     }
 }
