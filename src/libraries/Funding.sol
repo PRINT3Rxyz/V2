@@ -17,6 +17,7 @@ library Funding {
     using MathUtils for int16;
     using MathUtils for uint48;
 
+    uint256 constant PRICE_PRECISION = 1e30;
     int128 constant PRICE_UNIT = 1e30;
     int128 constant sPRICE_UNIT = 1e30;
     int64 constant sUNIT = 1e18;
@@ -41,8 +42,11 @@ library Funding {
 
         (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _indexPrice);
 
-        pool.fundingRateVelocity =
-            getCurrentVelocity(market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale).toInt64();
+        uint256 totalOpenInterest = pool.longOpenInterest + pool.shortOpenInterest;
+
+        pool.fundingRateVelocity = getCurrentVelocity(
+            market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale, totalOpenInterest
+        ).toInt64();
     }
 
     function calculateNextFunding(MarketId _id, IMarket market, uint256 _indexPrice)
@@ -82,15 +86,26 @@ library Funding {
 
     //  - proportionalSkew = skew / skewScale
     //  - velocity         = proportionalSkew * maxFundingVelocity
-    function getCurrentVelocity(IMarket market, int256 _skew, int16 _maxVelocity, int48 _skewScale)
-        public
-        view
-        returns (int256 velocity)
-    {
+    function getCurrentVelocity(
+        IMarket market,
+        int256 _skew,
+        int16 _maxVelocity,
+        int48 _skewScale,
+        uint256 _totalOpenInterest
+    ) public view returns (int256 velocity) {
+        // If Skew Scale < totalOpenInterest, set it to totalOpenInterest (this represents a minimum value)
+        uint256 scaledDownOi = _totalOpenInterest / PRICE_PRECISION;
+
         // As skewScale has 0 D.P, we can directly divide skew by skewScale to get a proportion to 30 D.P
         // e.g if skew = 300_000e30 ($300,000), and skewScale = 1_000_000 ($1,000,000)
         // proportionalSkew = 300_000e30 / 1_000_000 = 0.3e30 (0.3%)
-        int256 proportionalSkew = _skew / _skewScale;
+        int256 proportionalSkew;
+
+        if (_skewScale.toUint256() > scaledDownOi) {
+            proportionalSkew = _skew / _skewScale;
+        } else {
+            proportionalSkew = _skew / scaledDownOi.toInt48();
+        }
 
         if (proportionalSkew.abs() < market.FUNDING_VELOCITY_CLAMP()) {
             // If the proportional skew is less than the clamp, velocity is negligible.

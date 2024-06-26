@@ -15,6 +15,7 @@ import {Casting} from "../libraries/Casting.sol";
 
 library Pool {
     using Casting for uint256;
+    using Casting for int48;
 
     event MarketStateUpdated(string ticker, bool isLong);
 
@@ -37,9 +38,10 @@ library Pool {
     int8 private constant MIN_VELOCITY = 10; // 0.1% per day
     int16 private constant MAX_VELOCITY = 2000; // 20% per day
     int16 private constant MIN_SKEW_SCALE = 1000; // $1000
-    int48 private constant MAX_SKEW_SCALE = 10_000_000_000; // $10 Bn
-    int16 private constant MAX_SCALAR = 10000;
-    int16 private constant MIN_SCALAR = 1000;
+    int48 private constant MAX_SKEW_SCALE = 100_000_000_000; // $100 Bn
+    int16 private constant MAX_SCALAR = 10000; // 100%
+    int16 private constant MIN_SCALAR = 1000; // 10%
+    uint256 private constant PRICE_PRECISION = 1e30;
 
     struct Input {
         uint256 amountIn;
@@ -268,7 +270,7 @@ library Pool {
         });
     }
 
-    function validateConfig(Config calldata _config) external pure {
+    function validateConfig(Config calldata _config, uint256 _totalOpenInterest) internal pure {
         if (_config.maxLeverage == 0 || _config.maxLeverage > MAX_LEVERAGE) {
             revert Pool_InvalidLeverage();
         }
@@ -285,7 +287,12 @@ library Pool {
             revert Pool_InvalidMaxVelocity();
         }
 
-        if (_config.skewScale < MIN_SKEW_SCALE || _config.skewScale > MAX_SKEW_SCALE) {
+        // skew scale should be between 1000 and 100 Bn, skew scale should also never be < totalOpenInterest
+        uint256 scaledDownOi = _totalOpenInterest / PRICE_PRECISION;
+        if (
+            _config.skewScale < MIN_SKEW_SCALE || _config.skewScale > MAX_SKEW_SCALE
+                || _config.skewScale.toUint256() < scaledDownOi
+        ) {
             revert Pool_InvalidSkewScale();
         }
 

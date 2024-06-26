@@ -122,7 +122,9 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
 
         if (_borrowScale < MIN_BORROW_SCALE || _borrowScale > MAX_BORROW_SCALE) revert Market_InvalidBorrowScale();
 
-        Pool.validateConfig(_config);
+        uint256 totalOpenInterest = marketStorage[_id].longOpenInterest + marketStorage[_id].shortOpenInterest;
+
+        Pool.validateConfig(_config, totalOpenInterest);
 
         state.borrowScale = _borrowScale;
 

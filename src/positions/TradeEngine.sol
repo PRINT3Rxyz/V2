@@ -10,18 +10,13 @@ import {IPriceFeed} from "../oracle/interfaces/IPriceFeed.sol";
 import {IPositionManager} from "../router/interfaces/IPositionManager.sol";
 import {IReferralStorage} from "../referrals/interfaces/IReferralStorage.sol";
 import {MarketUtils} from "../markets/MarketUtils.sol";
-import {MathUtils} from "../libraries/MathUtils.sol";
 import {Units} from "../libraries/Units.sol";
 import {Casting} from "../libraries/Casting.sol";
 import {MarketId} from "../types/MarketId.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 
-/// @notice Library responsible for handling all execution logic associated with trades
-/// @dev Functions are external to avoid bytecode size issues.
 contract TradeEngine is OwnableRoles, ReentrancyGuard {
-    using MathUtils for uint256;
-    using MathUtils for int256;
     using Units for uint256;
     using Casting for int256;
 
@@ -63,7 +58,6 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     error TradeEngine_InvalidCaller();
     error TradeEngine_AlreadyInitialized();
     error TradeEngine_PositionNotLiquidatable();
-    error TradeEngine_InvalidLiquidationMethod();
 
     ITradeStorage tradeStorage;
     IMarket market;
@@ -141,7 +135,6 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         tradeStorage.deleteOrder(_id, _params.orderKey, _params.request.input.isLimit);
 
-        // @audit - Need to handle case where it's a decrease and size delta changes after this
         _updateMarketState(
             _id,
             prices,
@@ -217,7 +210,15 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         _decreasePosition(_id, vault, params, prices, true);
 
-        _liquidatePositionEvent(_id, _positionKey, position, prices.indexPrice, params.request.input.collateralDelta);
+        emit LiquidatePosition(
+            _positionKey,
+            MarketId.unwrap(_id),
+            position.ticker,
+            position.weightedAvgEntryPrice,
+            prices.indexPrice,
+            params.request.input.collateralDelta,
+            position.isLong
+        );
     }
 
     /**
@@ -353,7 +354,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         if (feeState.isLiquidation) {
             // Decreases aren't possible on liquidatable positions, to avoid incorrect state updates.
-            if (!_allowLiquidation) revert TradeEngine_InvalidLiquidationMethod();
+            if (!_allowLiquidation) revert TradeEngine_PositionNotLiquidatable();
             feeState = _handleLiquidation(_id, vault, position, feeState, _prices, positionKey, _params.request.user);
         } else if (isCollateralEdit) {
             _handleCollateralDecrease(
@@ -451,7 +452,16 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         if (_position.size == 0 || _position.collateral == 0) {
             tradeStorage.deletePosition(_id, _positionKey, _position.isLong);
             _deleteAssociatedOrders(_id, _position.stopLossKey, _position.takeProfitKey);
-            _closePositionEvent(_id, _positionKey, _position, _indexPrice);
+            emit ClosePosition(
+                _positionKey,
+                MarketId.unwrap(_id),
+                _position.ticker,
+                _position.size,
+                _position.collateral,
+                _position.weightedAvgEntryPrice,
+                _indexPrice,
+                _position.isLong
+            );
         } else {
             tradeStorage.updatePosition(_id, _position, _positionKey);
         }
@@ -595,38 +605,5 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
     function _deleteAssociatedOrders(MarketId _id, bytes32 _stopLossKey, bytes32 _takeProfitKey) private {
         if (_stopLossKey != bytes32(0)) tradeStorage.deleteOrder(_id, _stopLossKey, true);
         if (_takeProfitKey != bytes32(0)) tradeStorage.deleteOrder(_id, _takeProfitKey, true);
-    }
-
-    function _closePositionEvent(MarketId _id, bytes32 _positionKey, Position.Data memory _position, uint256 _exitPrice)
-        private
-    {
-        emit ClosePosition(
-            _positionKey,
-            MarketId.unwrap(_id),
-            _position.ticker,
-            _position.size,
-            _position.collateral,
-            _position.weightedAvgEntryPrice,
-            _exitPrice,
-            _position.isLong
-        );
-    }
-
-    function _liquidatePositionEvent(
-        MarketId _id,
-        bytes32 _positionKey,
-        Position.Data memory _position,
-        uint256 _liquidationPrice,
-        uint256 _liquidatedCollateral
-    ) private {
-        emit LiquidatePosition(
-            _positionKey,
-            MarketId.unwrap(_id),
-            _position.ticker,
-            _position.weightedAvgEntryPrice,
-            _liquidationPrice,
-            _liquidatedCollateral,
-            _position.isLong
-        );
     }
 }

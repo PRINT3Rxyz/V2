@@ -64,7 +64,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     mapping(uint256 index => MarketId market) public markets;
 
     // Required to create external Routers to determine optimal trading route
-    mapping(string ticker => MarketId[] marketIds) public marketsByTicker;
+    mapping(string ticker => MarketId[] marketIds) private marketsByTicker;
 
     bool private isInitialized;
     Pool.Config public defaultConfig;
@@ -241,6 +241,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
     function getMarketIds() external view returns (bytes32[] memory) {
         return marketIds.values();
+    }
+
+    function getMarketsForTicker(string calldata _ticker) external view returns (MarketId[] memory) {
+        return marketsByTicker[_ticker];
     }
 
     /**

@@ -91,7 +91,7 @@ contract Deploy is Script {
     string cumulativePnlSource = 'const ethers = await import("npm:ethers@6.10.0");'
         'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";'
         'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";'
-        'const PRICE_FEED = "0x4C3C29132894f2fB032242E52fb16B5A1ede5A04";'
+        'const PRICE_FEED = "0x4e6D2BbA749BE535C7AC1C2124060504E7801291";'
         "const PRECISION_DIVISOR = 10000000000000000000000000000n;" "const MARKET_ABI = [" "  {" '    type: "function",'
         '    name: "getTickers",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
         '    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],' '    stateMutability: "view",' "  },"
@@ -146,11 +146,11 @@ contract Deploy is Script {
         "    const pnlShort = await marketUtils.getMarketPnl(" "      marketId," "      MARKET," "      ticker,"
         "      medianPrice," "      baseUnit," "      false" "    );"
         "    cumulativePnl += pnlShort / PRECISION_DIVISOR;" "  }" "  return {" "    precision: 2,"
-        "    timestamp: Math.floor(Date.now() / 1000)," "    cumulativePnl: cumulativePnl," "  };" "};"
-        "const formatResult = (result) => {" "  const buffer = Buffer.alloc(23);"
-        "  buffer.writeUInt8(result.precision, 0);" "  buffer.writeUIntBE(result.timestamp, 1, 6);"
-        "  const pnlBuffer = Buffer.alloc(16);" "  let cumulativePnl = BigInt(result.cumulativePnl);"
-        "  if (cumulativePnl < 0) {" "    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl;" "  }"
+        "    timestamp: timestamp," "    cumulativePnl: cumulativePnl," "  };" "};" "const formatResult = (result) => {"
+        "  const buffer = Buffer.alloc(23);" "  buffer.writeUInt8(result.precision, 0);"
+        "  buffer.writeUIntBE(result.timestamp, 1, 6);" "  const pnlBuffer = Buffer.alloc(16);"
+        "  let cumulativePnl = BigInt(result.cumulativePnl);" "  if (cumulativePnl < 0) {"
+        "    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl;" "  }"
         "  pnlBuffer.writeBigInt64BE(cumulativePnl, 8);" "  buffer.set(pnlBuffer, 7);"
         '  return buffer.toString("hex");' "};" "const result = await calculateCumulativePnl();"
         "const formattedResult = formatResult(result);" "const arr = new Uint8Array(formattedResult.length / 2);"

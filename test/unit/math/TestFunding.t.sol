@@ -194,7 +194,7 @@ contract TestFunding is Test {
         int256 balancedLong = 1000e30;
         int256 balancedShort = -1000e30;
         // Calculate Heavy Long Velocity
-        int256 heavyLongVelocity = Funding.getCurrentVelocity(market, heavyLong, 900, 1_000_000);
+        int256 heavyLongVelocity = Funding.getCurrentVelocity(market, heavyLong, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = $500,000 / $1,000,000 = 0.5
          * bounded skew = 0.5
@@ -203,7 +203,7 @@ contract TestFunding is Test {
         int256 expectedHeavyLongVelocity = 0.045e18;
         assertEq(heavyLongVelocity, expectedHeavyLongVelocity);
         // Calculate Heavy Short Velocity
-        int256 heavyShortVelocity = Funding.getCurrentVelocity(market, heavyShort, 900, 1_000_000);
+        int256 heavyShortVelocity = Funding.getCurrentVelocity(market, heavyShort, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = -$500,000 / $1,000,000 = -0.5
          * bounded skew = -0.5
@@ -212,7 +212,7 @@ contract TestFunding is Test {
         int256 expectedHeavyShortVelocity = -0.045e18;
         assertEq(heavyShortVelocity, expectedHeavyShortVelocity);
         // Calculate Balanced Long Velocity
-        int256 balancedLongVelocity = Funding.getCurrentVelocity(market, balancedLong, 900, 1_000_000);
+        int256 balancedLongVelocity = Funding.getCurrentVelocity(market, balancedLong, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = $1,000 / $1,000,000 = 0.001
          * bounded skew = 0.001
@@ -221,7 +221,7 @@ contract TestFunding is Test {
         int256 expectedBalancedLongVelocity = 0.00009e18;
         assertEq(balancedLongVelocity, expectedBalancedLongVelocity);
         // Calculate Balanced Short Velocity
-        int256 balancedShortVelocity = Funding.getCurrentVelocity(market, balancedShort, 900, 1_000_000);
+        int256 balancedShortVelocity = Funding.getCurrentVelocity(market, balancedShort, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = -$1,000 / $1,000,000 = -0.001
          * bounded skew = -0.001

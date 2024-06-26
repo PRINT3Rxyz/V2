@@ -404,7 +404,7 @@ library Execution {
         Prices memory _prices,
         int256 _startingPnlFactor,
         bool _isLong
-    ) internal view {
+    ) external view {
         int256 newPnlFactor = _getPnlFactor(_id, market, vault, _prices, _isLong);
 
         if (newPnlFactor >= _startingPnlFactor) revert Execution_PNLFactorNotReduced();
@@ -422,7 +422,7 @@ library Execution {
      *
      * After timeToExpiration, anyone can execute the request.
      */
-    function validatePriceRequest(IPriceFeed priceFeed, address _caller, bytes32 _requestKey) internal view {
+    function validatePriceRequest(IPriceFeed priceFeed, address _caller, bytes32 _requestKey) public view {
         IPriceFeed.RequestData memory data = priceFeed.getRequestData(_requestKey);
 
         if (data.requester != _caller) {

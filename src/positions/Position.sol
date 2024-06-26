@@ -257,7 +257,7 @@ library Position {
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         address _liquidator
-    ) internal view returns (Settlement memory) {
+    ) external view returns (Settlement memory) {
         return Settlement({
             request: Request({
                 input: Input({
