@@ -114,6 +114,7 @@ contract TestBorrowing is Test {
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
+            maxLeverage: 100,
             strategy: IPriceFeed.SecondaryStrategy({
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
@@ -180,8 +181,8 @@ contract TestBorrowing is Test {
         // Get the Open Interest
         uint256 openInterestUsd = market.getOpenInterest(marketId, _isLong);
         // Get the current cumulative fee on the market
-        uint256 currentCumulative =
-            market.getCumulativeBorrowFee(marketId, _isLong) + Borrowing.calculatePendingFees(marketId, market, _isLong);
+        uint256 currentCumulative = market.getCumulativeBorrowFee(marketId, _isLong)
+            + Borrowing.calculatePendingFees(marketId, address(market), _isLong);
         // Get the last weighted average entry cumulative fee
         uint256 lastCumulative = market.getAverageCumulativeBorrowFee(marketId, _isLong);
         // If OI before is 0, or last cumulative = 0, return current cumulative
@@ -360,8 +361,9 @@ contract TestBorrowing is Test {
         );
         // compare with the actual rate
 
-        cache.actualRate =
-            Borrowing.calculateRate(marketId, market, vault, cache.collateralPrice, cache.collateralBaseUnit, _isLong);
+        cache.actualRate = Borrowing.calculateRate(
+            marketId, address(market), address(vault), cache.collateralPrice, cache.collateralBaseUnit, _isLong
+        );
         // calculate the expected rate
         cache.expectedRate = MathUtils.mulDiv(market.getBorrowScale(marketId), _openInterest, cache.maxOi);
         // Check off by 1 for round down
@@ -462,7 +464,7 @@ contract TestBorrowing is Test {
             abi.encode(_openInterest)
         );
         // Assert Eq EV vs Actual
-        uint256 val = Borrowing.getTotalFeesOwedByMarket(marketId, market, true);
+        uint256 val = Borrowing.getTotalFeesOwedByMarket(marketId, address(market), true);
 
         uint256 ev = MathUtils.mulDiv(_cumulativeFee - _avgCumulativeFee, _openInterest, 1e18);
 

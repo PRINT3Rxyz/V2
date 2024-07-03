@@ -105,7 +105,7 @@ library Oracle {
     /**
      * =========================================== Helper Functions ===========================================
      */
-    function estimateRequestCost(IPriceFeed priceFeed) internal view returns (uint256 cost) {
+    function estimateRequestCost(IPriceFeed priceFeed) public view returns (uint256 cost) {
         uint256 gasPrice = tx.gasprice;
 
         uint256 overestimatedGasPrice = gasPrice + gasPrice.percentage(OVERESTIMATION_FACTOR);

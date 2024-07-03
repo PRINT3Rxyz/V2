@@ -71,11 +71,11 @@ library PriceImpact {
 
         if (_request.input.isLong) {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id, market, vault, _prices.indexPrice, _prices.longMarketTokenPrice, true
+                _id, address(market), address(vault), _prices.indexPrice, _prices.longMarketTokenPrice, true
             ).toInt256();
         } else {
             state.availableOi = MarketUtils.getAvailableOiUsd(
-                _id, market, vault, _prices.indexPrice, _prices.shortMarketTokenPrice, false
+                _id, address(market), address(vault), _prices.indexPrice, _prices.shortMarketTokenPrice, false
             ).toInt256();
         }
 
@@ -253,5 +253,114 @@ library PriceImpact {
         (state.positiveLiquidityScalar, state.negativeLiquidityScalar) = market.getImpactValues(_id);
         state.positiveLiquidityScalar = state.positiveLiquidityScalar.expandDecimals(4, 30);
         state.negativeLiquidityScalar = state.negativeLiquidityScalar.expandDecimals(4, 30);
+    }
+
+    /**
+     * =========================================== Getter Functions ===========================================
+     */
+
+    /// @dev - Only used as a getter function for front-ends
+    function estimate(
+        MarketId _id,
+        address _market,
+        address _vault,
+        int256 _sizeDeltaUsd,
+        uint256 _indexPrice,
+        uint256 _collateralPrice,
+        bool _isLong
+    ) external view returns (int256 priceImpactUsd, uint256 impactedPrice) {
+        IMarket market = IMarket(_market);
+
+        ImpactState memory state;
+
+        state = _getImpactValues(_id, market);
+
+        state.longOi = market.getOpenInterest(_id, true);
+        state.shortOi = market.getOpenInterest(_id, false);
+
+        state.availableOi;
+        if (_isLong) {
+            state.availableOi =
+                MarketUtils.getAvailableOiUsd(_id, _market, _vault, _indexPrice, _collateralPrice, true).toInt256();
+        } else {
+            state.availableOi =
+                MarketUtils.getAvailableOiUsd(_id, _market, _vault, _indexPrice, _collateralPrice, false).toInt256();
+        }
+
+        state.initialTotalOi = state.longOi + state.shortOi;
+
+        state.initialSkew = state.longOi.diff(state.shortOi);
+
+        bool isIncrease = _sizeDeltaUsd > 0;
+
+        state.updatedSkew;
+        state.updatedTotalOi;
+        if (_isLong) {
+            if (isIncrease) {
+                state.updatedSkew = (state.longOi + _sizeDeltaUsd.abs()).diff(state.shortOi);
+                state.updatedTotalOi = state.initialTotalOi + _sizeDeltaUsd.abs();
+            } else {
+                state.updatedSkew = (state.longOi - _sizeDeltaUsd.abs()).diff(state.shortOi);
+                state.updatedTotalOi = state.initialTotalOi - _sizeDeltaUsd.abs();
+            }
+        } else {
+            if (isIncrease) {
+                state.updatedSkew = state.longOi.diff(state.shortOi + _sizeDeltaUsd.abs());
+                state.updatedTotalOi = state.initialTotalOi + _sizeDeltaUsd.abs();
+            } else {
+                state.updatedSkew = state.longOi.diff(state.shortOi - _sizeDeltaUsd.abs());
+                state.updatedTotalOi = state.initialTotalOi - _sizeDeltaUsd.abs();
+            }
+        }
+
+        if (state.initialSkew ^ state.updatedSkew < 0) {
+            int256 positiveImpact = _calculateImpact(
+                _sizeDeltaUsd,
+                0,
+                state.initialSkew,
+                state.positiveLiquidityScalar,
+                state.initialTotalOi,
+                state.updatedTotalOi,
+                state.availableOi,
+                isIncrease
+            );
+
+            int256 negativeImpact = _calculateImpact(
+                _sizeDeltaUsd,
+                state.updatedSkew,
+                0,
+                state.negativeLiquidityScalar,
+                state.initialTotalOi,
+                state.updatedTotalOi,
+                state.availableOi,
+                isIncrease
+            );
+
+            priceImpactUsd = positiveImpact - negativeImpact;
+        } else {
+            int256 liquidityScalar;
+            if (state.updatedSkew.abs() < state.initialSkew.abs()) {
+                liquidityScalar = state.positiveLiquidityScalar;
+            } else {
+                liquidityScalar = state.negativeLiquidityScalar;
+            }
+
+            priceImpactUsd = _calculateImpact(
+                _sizeDeltaUsd,
+                state.updatedSkew,
+                state.initialSkew,
+                liquidityScalar,
+                state.initialTotalOi,
+                state.updatedTotalOi,
+                state.availableOi,
+                isIncrease
+            );
+        }
+
+        if (priceImpactUsd > 0) {
+            priceImpactUsd = _validateImpactDelta(_id, market, priceImpactUsd);
+        }
+
+        impactedPrice = _calculateImpactedPrice(_sizeDeltaUsd.toUint256(), _indexPrice, priceImpactUsd, _isLong);
     }
 }

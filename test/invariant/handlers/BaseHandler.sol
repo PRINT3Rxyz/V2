@@ -135,7 +135,8 @@ abstract contract BaseHandler is Test {
     }
 
     function _getAvailableOi(uint256 _indexPrice, bool _isLong) internal view returns (uint256) {
-        return
-            MarketUtils.getAvailableOiUsd(marketId, market, vault, _indexPrice, _isLong ? _indexPrice : 1e30, _isLong);
+        return MarketUtils.getAvailableOiUsd(
+            marketId, address(market), address(vault), _indexPrice, _isLong ? _indexPrice : 1e30, _isLong
+        );
     }
 }

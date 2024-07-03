@@ -130,6 +130,7 @@ contract TestFunding is Test {
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
+            maxLeverage: 100,
             strategy: IPriceFeed.SecondaryStrategy({
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
@@ -194,7 +195,7 @@ contract TestFunding is Test {
         int256 balancedLong = 1000e30;
         int256 balancedShort = -1000e30;
         // Calculate Heavy Long Velocity
-        int256 heavyLongVelocity = Funding.getCurrentVelocity(market, heavyLong, 900, 1_000_000, 1_000_000);
+        int256 heavyLongVelocity = Funding.getCurrentVelocity(address(market), heavyLong, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = $500,000 / $1,000,000 = 0.5
          * bounded skew = 0.5
@@ -203,7 +204,7 @@ contract TestFunding is Test {
         int256 expectedHeavyLongVelocity = 0.045e18;
         assertEq(heavyLongVelocity, expectedHeavyLongVelocity);
         // Calculate Heavy Short Velocity
-        int256 heavyShortVelocity = Funding.getCurrentVelocity(market, heavyShort, 900, 1_000_000, 1_000_000);
+        int256 heavyShortVelocity = Funding.getCurrentVelocity(address(market), heavyShort, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = -$500,000 / $1,000,000 = -0.5
          * bounded skew = -0.5
@@ -212,7 +213,8 @@ contract TestFunding is Test {
         int256 expectedHeavyShortVelocity = -0.045e18;
         assertEq(heavyShortVelocity, expectedHeavyShortVelocity);
         // Calculate Balanced Long Velocity
-        int256 balancedLongVelocity = Funding.getCurrentVelocity(market, balancedLong, 900, 1_000_000, 1_000_000);
+        int256 balancedLongVelocity =
+            Funding.getCurrentVelocity(address(market), balancedLong, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = $1,000 / $1,000,000 = 0.001
          * bounded skew = 0.001
@@ -221,7 +223,8 @@ contract TestFunding is Test {
         int256 expectedBalancedLongVelocity = 0.00009e18;
         assertEq(balancedLongVelocity, expectedBalancedLongVelocity);
         // Calculate Balanced Short Velocity
-        int256 balancedShortVelocity = Funding.getCurrentVelocity(market, balancedShort, 900, 1_000_000, 1_000_000);
+        int256 balancedShortVelocity =
+            Funding.getCurrentVelocity(address(market), balancedShort, 900, 1_000_000, 1_000_000);
         /**
          * proportional skew = -$1,000 / $1,000,000 = -0.001
          * bounded skew = -0.001
@@ -242,7 +245,7 @@ contract TestFunding is Test {
             abi.encode(uint48(block.timestamp))
         );
         // get current funding rate
-        int256 currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        int256 currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = 0 + 0.0025 * (0 / 86,400)
          *                    = 0
@@ -255,7 +258,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = 0 + 0.0025 * (10,000 / 86,400)
          *                    = 0 + 0.0025 * 0.11574074
@@ -269,7 +272,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = 0 + 0.0025 * (20,000 / 86,400)
          *                    = 0 + 0.0025 * 0.23148148
@@ -283,7 +286,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
 
         /**
          * currentFundingRate = 0 + 0.0025 * (30,000 / 86,400)
@@ -309,7 +312,7 @@ contract TestFunding is Test {
         );
         // get current funding rate
 
-        int256 currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        int256 currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = -0.0005 + 0.0025 * (0 / 86,400)
          *                    = -0.0005
@@ -322,7 +325,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = -0.0005 + 0.0025 * (10,000 / 86,400)
          *                    = -0.0005 + 0.0025 * 0.11574074
@@ -337,7 +340,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
         /**
          * currentFundingRate = -0.0005 + 0.0025 * (20,000 / 86,400)
          *                    = -0.0005 + 0.0025 * 0.23148148
@@ -352,7 +355,7 @@ contract TestFunding is Test {
 
         // get current funding rate
 
-        currentFundingRate = Funding.getCurrentFundingRate(marketId, market);
+        currentFundingRate = Funding.getCurrentFundingRate(marketId, address(market));
 
         /**
          * currentFundingRate = -0.0005 + 0.0025 * (30,000 / 86,400)
@@ -438,7 +441,7 @@ contract TestFunding is Test {
 
         // Call the function with the fuzzed input
         (int256 nextFundingRate, int256 nextFundingAccruedUsd) =
-            Funding.calculateNextFunding(marketId, market, _indexPrice);
+            Funding.calculateNextFunding(marketId, address(market), _indexPrice);
 
         // Check values are as expected
         console2.log(nextFundingRate);
@@ -466,7 +469,7 @@ contract TestFunding is Test {
         skip(_timeToSkip);
         // Compare the funding accrued to the expected value
 
-        (, int256 accrued) = Funding.calculateNextFunding(marketId, market, _indexPrice);
+        (, int256 accrued) = Funding.calculateNextFunding(marketId, address(market), _indexPrice);
         assertNotEq(accrued, 0, "Funding not accrued as expected");
     }
 
@@ -503,7 +506,7 @@ contract TestFunding is Test {
         prices.collateralBaseUnit = _isLong ? 1e18 : 1e6;
 
         // Get the amount accrued before the update
-        (, int256 predictedAccrual) = Funding.calculateNextFunding(marketId, market, _indexPrice);
+        (, int256 predictedAccrual) = Funding.calculateNextFunding(marketId, address(market), _indexPrice);
 
         vm.prank(address(tradeEngine));
         market.updateMarketState(marketId, ethTicker, 0, prices, _isLong, true);

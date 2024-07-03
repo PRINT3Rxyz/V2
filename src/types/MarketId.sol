@@ -8,7 +8,7 @@ type MarketId is bytes32;
 library MarketIdLibrary {
     function toId(IMarketFactory.Input memory _input) internal pure returns (MarketId marketId) {
         assembly {
-            marketId := keccak256(_input, mul(32, 9))
+            marketId := keccak256(_input, mul(32, 10))
         }
     }
 

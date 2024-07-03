@@ -40,20 +40,22 @@ library Funding {
     ) internal {
         int256 nextSkew = _calculateNextSkew(_id, market, _sizeDelta, _isLong);
 
-        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, market, _indexPrice);
+        (pool.fundingRate, pool.fundingAccruedUsd) = calculateNextFunding(_id, address(market), _indexPrice);
 
         uint256 totalOpenInterest = pool.longOpenInterest + pool.shortOpenInterest;
 
         pool.fundingRateVelocity = getCurrentVelocity(
-            market, nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale, totalOpenInterest
+            address(market), nextSkew, pool.config.maxFundingVelocity, pool.config.skewScale, totalOpenInterest
         ).toInt64();
     }
 
-    function calculateNextFunding(MarketId _id, IMarket market, uint256 _indexPrice)
+    function calculateNextFunding(MarketId _id, address _market, uint256 _indexPrice)
         public
         view
         returns (int64, int256)
     {
+        IMarket market = IMarket(_market);
+
         (int64 fundingRate, int256 unrecordedFunding) = _getUnrecordedFundingWithRate(_id, market, _indexPrice);
 
         return (fundingRate, market.getFundingAccrued(_id) + unrecordedFunding);
@@ -62,7 +64,8 @@ library Funding {
     /**
      * @dev Returns the current funding rate given current market conditions.
      */
-    function getCurrentFundingRate(MarketId _id, IMarket market) public view returns (int64) {
+    function getCurrentFundingRate(MarketId _id, address _market) public view returns (int64) {
+        IMarket market = IMarket(_market);
         // example:
         //  - fundingRate         = 0
         //  - velocity            = 0.0025
@@ -87,12 +90,14 @@ library Funding {
     //  - proportionalSkew = skew / skewScale
     //  - velocity         = proportionalSkew * maxFundingVelocity
     function getCurrentVelocity(
-        IMarket market,
+        address _market,
         int256 _skew,
         int16 _maxVelocity,
         int48 _skewScale,
         uint256 _totalOpenInterest
     ) public view returns (int256 velocity) {
+        IMarket market = IMarket(_market);
+
         // If Skew Scale < totalOpenInterest, set it to totalOpenInterest (this represents a minimum value)
         uint256 scaledDownOi = _totalOpenInterest / PRICE_PRECISION;
 
@@ -147,7 +152,7 @@ library Funding {
         view
         returns (int64 fundingRate, int256 unrecordedFunding)
     {
-        fundingRate = getCurrentFundingRate(_id, market);
+        fundingRate = getCurrentFundingRate(_id, address(market));
 
         (int256 storedFundingRate,) = market.getFundingRates(_id);
 

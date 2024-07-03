@@ -32,7 +32,7 @@ library Pool {
     uint8 private constant MAX_ASSETS = 100;
     uint16 private constant MAX_LEVERAGE = 1000; // Max 1000x leverage
     uint8 private constant MIN_MAINTENANCE_MARGIN = 50; // 0.5%
-    uint16 private constant MAX_MAINTENANCE_MARGIN = 1000; // 10%
+    uint16 private constant MAX_MAINTENANCE_MARGIN = 100; // 1%
     uint16 private constant MIN_RESERVE_FACTOR = 1000; // 10% reserve factor
     uint16 private constant MAX_RESERVE_FACTOR = 5000; // 50% reserve factor
     int8 private constant MIN_VELOCITY = 10; // 0.1% per day
@@ -144,7 +144,7 @@ library Pool {
          * Maximum Leverage for the Market
          * Value to 0 decimal places. E.g. 5 = 5x leverage.
          */
-        uint8 maxLeverage;
+        uint16 maxLeverage;
         /**
          * Percentage of the position's size that must be maintained as margin.
          * Used to prevent liquidation threshold from being at the point
@@ -327,14 +327,14 @@ library Pool {
             );
 
             _storage.cumulatives.weightedAvgCumulativeLong =
-                Borrowing.getNextAverageCumulative(_id, market, _sizeDeltaUsd, true);
+                Borrowing.getNextAverageCumulative(_id, address(market), _sizeDeltaUsd, true);
         } else {
             _storage.cumulatives.shortAverageEntryPriceUsd = MarketUtils.calculateWeightedAverageEntryPrice(
                 _storage.cumulatives.shortAverageEntryPriceUsd, _storage.shortOpenInterest, _sizeDeltaUsd, _priceUsd
             );
 
             _storage.cumulatives.weightedAvgCumulativeShort =
-                Borrowing.getNextAverageCumulative(_id, market, _sizeDeltaUsd, false);
+                Borrowing.getNextAverageCumulative(_id, address(market), _sizeDeltaUsd, false);
         }
     }
 
@@ -347,7 +347,13 @@ library Pool {
         bool _isLong
     ) private {
         Borrowing.updateState(
-            _id, market, market.getVault(_id), _storage, _collateralPrice, _collateralBaseUnit, _isLong
+            _id,
+            address(market),
+            address(market.getVault(_id)),
+            _storage,
+            _collateralPrice,
+            _collateralBaseUnit,
+            _isLong
         );
     }
 

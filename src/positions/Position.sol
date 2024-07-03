@@ -148,7 +148,7 @@ library Position {
     }
 
     function checkLeverage(MarketId _id, IMarket market, uint256 _sizeUsd, uint256 _collateralUsd) internal view {
-        uint8 maxLeverage = market.getMaxLeverage(_id);
+        uint16 maxLeverage = market.getMaxLeverage(_id);
 
         if (_collateralUsd > _sizeUsd) revert Position_CollateralExceedsSize();
         uint256 leverage = _sizeUsd / _collateralUsd;
@@ -355,7 +355,7 @@ library Position {
         uint256 _sizeDelta,
         int256 _entryFundingAccrued
     ) internal view returns (int256 fundingFeeUsd, int256 nextFundingAccrued) {
-        (, nextFundingAccrued) = Funding.calculateNextFunding(_id, market, _indexPrice);
+        (, nextFundingAccrued) = Funding.calculateNextFunding(_id, address(market), _indexPrice);
 
         fundingFeeUsd = _sizeDelta.toInt256().percentageUsd(nextFundingAccrued - _entryFundingAccrued);
     }
@@ -366,7 +366,7 @@ library Position {
         view
         returns (int256)
     {
-        (, int256 nextFundingAccrued) = Funding.calculateNextFunding(_id, market, _indexPrice);
+        (, int256 nextFundingAccrued) = Funding.calculateNextFunding(_id, address(market), _indexPrice);
 
         return _position.size.toInt256().percentageUsd(nextFundingAccrued - _position.fundingParams.lastFundingAccrued);
     }
@@ -386,7 +386,7 @@ library Position {
             ? market.getCumulativeBorrowFee(_id, true) - _position.borrowingParams.lastLongCumulativeBorrowFee
             : market.getCumulativeBorrowFee(_id, false) - _position.borrowingParams.lastShortCumulativeBorrowFee;
 
-        borrowFee += Borrowing.calculatePendingFees(_id, market, _position.isLong);
+        borrowFee += Borrowing.calculatePendingFees(_id, address(market), _position.isLong);
 
         uint256 feeSinceUpdate = borrowFee == 0 ? 0 : _position.size.percentage(borrowFee);
 

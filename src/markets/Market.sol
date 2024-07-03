@@ -16,7 +16,6 @@ import {Oracle} from "../oracle/Oracle.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
 import {Execution} from "../positions/Execution.sol";
 
-/// @dev - Vault can support the trading of multiple assets under the same liquidity.
 contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
     using EnumerableMap for EnumerableMap.MarketMap;
@@ -356,7 +355,7 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         return marketStorage[_id].config.maintenanceMargin;
     }
 
-    function getMaxLeverage(MarketId _id) external view returns (uint8) {
+    function getMaxLeverage(MarketId _id) external view returns (uint16) {
         return marketStorage[_id].config.maxLeverage;
     }
 

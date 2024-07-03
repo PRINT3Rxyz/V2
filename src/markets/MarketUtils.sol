@@ -69,8 +69,8 @@ library MarketUtils {
 
         (params.longPrices, params.shortPrices) = Oracle.getVaultPrices(priceFeed, params.deposit.requestTimestamp);
 
-        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, true);
-        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, false);
+        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, address(market), true);
+        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, address(market), false);
 
         params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, marketId, params.deposit.requestTimestamp);
 
@@ -89,8 +89,8 @@ library MarketUtils {
 
         (params.longPrices, params.shortPrices) = Oracle.getVaultPrices(priceFeed, params.withdrawal.requestTimestamp);
 
-        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, true);
-        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, market, false);
+        params.longBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, address(market), true);
+        params.shortBorrowFeesUsd = Borrowing.getTotalFeesOwedByMarket(marketId, address(market), false);
 
         params.cumulativePnl = Oracle.getCumulativePnl(priceFeed, marketId, params.withdrawal.requestTimestamp);
 
@@ -217,7 +217,7 @@ library MarketUtils {
         afterFeeAmount = _params.deposit.amountIn - fee;
 
         mintAmount = calculateMintAmount(
-            _params.vault,
+            address(_params.vault),
             _params.longPrices,
             _params.shortPrices,
             afterFeeAmount,
@@ -234,7 +234,7 @@ library MarketUtils {
         returns (uint256 tokenAmountOut)
     {
         uint256 amountOut = calculateWithdrawalAmount(
-            _params.vault,
+            address(_params.vault),
             _params.longPrices,
             _params.shortPrices,
             _params.withdrawal.amountIn,
@@ -260,7 +260,7 @@ library MarketUtils {
 
     /// @dev - Calculate the Mint Amount to 18 decimal places
     function calculateMintAmount(
-        IVault vault,
+        address _vault,
         Oracle.Prices memory _longPrices,
         Oracle.Prices memory _shortPrices,
         uint256 _amountIn,
@@ -270,7 +270,7 @@ library MarketUtils {
         bool _isLongToken
     ) public view returns (uint256 marketTokenAmount) {
         uint256 marketTokenPrice = getMarketTokenPrice(
-            vault, _longPrices.max, _longBorrowFeesUsd, _shortPrices.max, _shortBorrowFeesUsd, _cumulativePnl
+            _vault, _longPrices.max, _longBorrowFeesUsd, _shortPrices.max, _shortBorrowFeesUsd, _cumulativePnl
         );
 
         // Long divisor -> (18dp * 30dp / x dp) should = 18dp -> dp = 30
@@ -291,7 +291,7 @@ library MarketUtils {
     }
 
     function calculateWithdrawalAmount(
-        IVault vault,
+        address _vault,
         Oracle.Prices memory _longPrices,
         Oracle.Prices memory _shortPrices,
         uint256 _marketTokenAmountIn,
@@ -300,9 +300,11 @@ library MarketUtils {
         int256 _cumulativePnl,
         bool _isLongToken
     ) public view returns (uint256 tokenAmount) {
+        IVault vault = IVault(_vault);
+
         // Minimize the AUM
         uint256 marketTokenPrice = getMarketTokenPrice(
-            vault, _longPrices.min, _longBorrowFeesUsd, _shortPrices.min, _shortBorrowFeesUsd, _cumulativePnl
+            _vault, _longPrices.min, _longBorrowFeesUsd, _shortPrices.min, _shortBorrowFeesUsd, _cumulativePnl
         );
 
         uint256 valueUsd = _marketTokenAmountIn.toUsd(marketTokenPrice, PRECISION);
@@ -327,20 +329,22 @@ library MarketUtils {
      * =========================================== Utility Functions ===========================================
      */
     function getMarketTokenPrice(
-        IVault vault,
+        address _vault,
         uint256 _longTokenPrice,
         uint256 _longBorrowFeesUsd,
         uint256 _shortTokenPrice,
         uint256 _shortBorrowFeesUsd,
         int256 _cumulativePnl
     ) public view returns (uint256 lpTokenPrice) {
+        IVault vault = IVault(_vault);
+
         uint256 totalSupply = vault.totalSupply();
 
         if (totalSupply == 0) {
             lpTokenPrice = 0;
         } else {
             uint256 aum = getAum(
-                vault, _longTokenPrice, _longBorrowFeesUsd, _shortTokenPrice, _shortBorrowFeesUsd, _cumulativePnl
+                _vault, _longTokenPrice, _longBorrowFeesUsd, _shortTokenPrice, _shortBorrowFeesUsd, _cumulativePnl
             );
 
             lpTokenPrice = aum.divWad(totalSupply);
@@ -351,13 +355,15 @@ library MarketUtils {
     // They are however settled through the pool, so maybe they should be accounted for?
     // If not, we must reduce the pool balance for each funding claim, which will account for them.
     function getAum(
-        IVault vault,
+        address _vault,
         uint256 _longTokenPrice,
         uint256 _longBorrowFeesUsd,
         uint256 _shortTokenPrice,
         uint256 _shortBorrowFeesUsd,
         int256 _cumulativePnl
     ) public view returns (uint256 aum) {
+        IVault vault = IVault(_vault);
+
         aum += (vault.longTokenBalance() - vault.longTokensReserved()).toUsd(_longTokenPrice, LONG_BASE_UNIT);
 
         aum += (vault.shortTokenBalance() - vault.shortTokensReserved()).toUsd(_shortTokenPrice, SHORT_BASE_UNIT);
@@ -446,26 +452,29 @@ library MarketUtils {
         uint256 _collateralTokenPrice,
         bool _isLong
     ) internal view {
-        uint256 availableUsd = getAvailableOiUsd(_id, market, vault, _indexPrice, _collateralTokenPrice, _isLong);
+        uint256 availableUsd =
+            getAvailableOiUsd(_id, address(market), address(vault), _indexPrice, _collateralTokenPrice, _isLong);
 
         if (_sizeDeltaUsd > availableUsd) revert MarketUtils_MaxOiExceeded();
     }
 
     function getAvailableOiUsd(
         MarketId _id,
-        IMarket market,
-        IVault vault,
+        address _market,
+        address _vault,
         uint256 _indexPrice,
         uint256 _collateralTokenPrice,
         bool _isLong
-    ) internal view returns (uint256 availableOi) {
+    ) public view returns (uint256 availableOi) {
         uint256 collateralBaseUnit = _isLong ? LONG_BASE_UNIT : SHORT_BASE_UNIT;
 
-        uint256 remainingAllocationUsd = getPoolBalanceUsd(vault, _collateralTokenPrice, collateralBaseUnit, _isLong);
+        uint256 remainingAllocationUsd =
+            getPoolBalanceUsd(IVault(_vault), _collateralTokenPrice, collateralBaseUnit, _isLong);
 
-        availableOi = remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, market));
+        availableOi =
+            remainingAllocationUsd - remainingAllocationUsd.percentage(_getReserveFactor(_id, IMarket(_market)));
 
-        int256 pnl = getMarketPnl(_id, address(market), _indexPrice, _isLong);
+        int256 pnl = getMarketPnl(_id, _market, _indexPrice, _isLong);
 
         // if the pnl is positive, subtract it from the available oi
         if (pnl > 0) {

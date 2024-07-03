@@ -109,7 +109,7 @@ interface IMarket {
     function getFundingAccrued(MarketId _id) external view returns (int256);
     function getBorrowingRate(MarketId _id, bool _isLong) external view returns (uint256);
     function getMaintenanceMargin(MarketId _id) external view returns (uint256);
-    function getMaxLeverage(MarketId _id) external view returns (uint8);
+    function getMaxLeverage(MarketId _id) external view returns (uint16);
     function getOpenInterest(MarketId _id, bool _isLong) external view returns (uint256);
     function getAverageCumulativeBorrowFee(MarketId _id, bool _isLong) external view returns (uint256);
 }

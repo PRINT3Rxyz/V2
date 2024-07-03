@@ -152,7 +152,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         IVault.ExecuteWithdrawal memory params = MarketUtils.constructWithdrawalParams(_id, priceFeed, market, _key);
 
         params.amountOut = MarketUtils.calculateWithdrawalAmount(
-            params.vault,
+            address(params.vault),
             params.longPrices,
             params.shortPrices,
             params.withdrawal.amountIn,

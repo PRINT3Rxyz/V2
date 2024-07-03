@@ -54,6 +54,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     uint64 private constant ADL_FEE = 0.01e18;
     uint64 private constant FEE_FOR_EXECUTION = 0.1e18;
     uint128 private constant MIN_COLLATERAL_USD = 2e30;
+    uint16 private constant MAX_LEVERAGE = 1000;
     uint8 private constant MIN_TIME_TO_EXECUTE = 1 minutes;
     uint8 private constant DECIMALS = 18;
     uint8 private constant MAX_TICKER_LENGTH = 15;
@@ -172,6 +173,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     function createNewMarket(Input calldata _input) external payable nonReentrant returns (bytes32 requestKey) {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
         if (msg.value < marketCreationFee + priceUpdateFee) revert MarketFactory_InvalidFee();
+        if (_input.maxLeverage > MAX_LEVERAGE || _input.maxLeverage == 0) revert MarketFactory_InvalidLeverage();
 
         _initializeAsset(_input, priceUpdateFee);
 
@@ -270,6 +272,12 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         if (marketIds.contains(MarketId.unwrap(id))) revert MarketFactory_MarketExists();
 
         address vault = Deployer.deployVault(_params, WETH, USDC);
+
+        Pool.Config memory config = defaultConfig;
+
+        if (_params.input.maxLeverage > 0) {
+            config.maxLeverage = _params.input.maxLeverage;
+        }
 
         market.initializePool(id, defaultConfig, _params.requester, 0.003e18, vault, _params.input.indexTokenTicker);
 

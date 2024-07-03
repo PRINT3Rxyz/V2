@@ -113,6 +113,7 @@ contract TestVaultAccounting is Test {
             indexTokenTicker: "ETH",
             marketTokenName: "BRRR",
             marketTokenSymbol: "BRRR",
+            maxLeverage: 100,
             strategy: IPriceFeed.SecondaryStrategy({
                 exists: false,
                 feedType: IPriceFeed.FeedType.CHAINLINK,
