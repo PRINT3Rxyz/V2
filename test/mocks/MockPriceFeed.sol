@@ -496,4 +496,12 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
         delete idToKey[requestId];
         delete keyToId[_requestKey];
     }
+
+    // Used to manually manipulate requestData timestamp for testing
+    function updateRequestTimestamp(bytes32 _requestKey, uint48 _newTimestamp) external {
+        bytes32 requestId = keyToId[_requestKey];
+        RequestData memory data = requestData.get(requestId);
+        data.blockTimestamp = _newTimestamp;
+        requestData.set(requestId, data);
+    }
 }

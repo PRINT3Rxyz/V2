@@ -192,8 +192,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         if (position.user == address(0)) revert TradeEngine_PositionDoesNotExist();
 
-        uint48 requestTimestamp = priceFeed.getRequestTimestamp(_requestKey);
-        Execution.validatePriceRequest(priceFeed, _liquidator, _requestKey);
+        uint48 requestTimestamp = Execution.validatePriceRequest(priceFeed, _liquidator, _requestKey);
 
         Execution.Prices memory prices =
             Execution.getTokenPrices(priceFeed, position.ticker, requestTimestamp, position.isLong, false);
@@ -489,8 +488,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
 
         if (position.user == address(0)) revert TradeEngine_PositionDoesNotExist();
 
-        uint48 requestTimestamp = priceFeed.getRequestTimestamp(_requestKey);
-        Execution.validatePriceRequest(priceFeed, _feeReceiver, _requestKey);
+        uint48 requestTimestamp = Execution.validatePriceRequest(priceFeed, _feeReceiver, _requestKey);
 
         (prices, params, startingPnlFactor) =
             Execution.initiateAdlOrder(_id, market, vault, priceFeed, position, requestTimestamp, _feeReceiver);

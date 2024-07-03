@@ -102,14 +102,18 @@ library Execution {
         // If the order doesn't exist, revert
         if (request.user == address(0)) revert Execution_InvalidOrderKey();
 
-        if (request.input.isLimit) validatePriceRequest(priceFeed, _feeReceiver, _requestKey);
+        // The timestamp to get prices for -> for market orders, it's the request timestamp.
+        uint48 priceTimestamp = request.requestTimestamp;
 
+        if (request.input.isLimit) {
+            // For Limit Orders, set the priceTimestamp to the timestamp of the
+            // price request, as the keeper should've requested a price update themselves.
+            priceTimestamp = validatePriceRequest(priceFeed, _feeReceiver, _requestKey);
+        }
+
+        // Gets the prices from the PriceFeed & ensures they are valid / haven't expired
         prices = getTokenPrices(
-            priceFeed,
-            request.input.ticker,
-            uint48(request.requestTimestamp),
-            request.input.isLong,
-            request.input.isIncrease
+            priceFeed, request.input.ticker, priceTimestamp, request.input.isLong, request.input.isIncrease
         );
 
         if (request.input.isLimit) {
@@ -214,7 +218,8 @@ library Execution {
             feeState.feeForExecutor,
             feeState.affiliateRebate,
             feeState.borrowFee,
-            feeState.fundingFee
+            feeState.fundingFee,
+            position.isLong
         );
 
         uint256 collateralDeltaUsd =
@@ -259,7 +264,8 @@ library Execution {
             feeState.feeForExecutor,
             feeState.affiliateRebate,
             feeState.borrowFee,
-            feeState.fundingFee
+            feeState.fundingFee,
+            _params.request.input.isLong
         );
 
         uint256 collateralDeltaUsd = feeState.afterFeeAmount.toUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
@@ -378,7 +384,9 @@ library Execution {
 
         // Signs are flipped to convert them to their negative
         losses += -feeState.realizedPnl;
-        losses += -feeState.fundingFee;
+        // For Longs, Positive Funding = Loss, Negative Funding = Gain
+        // For Shorts, Negative Funding = Loss, Positive Funding = Gain
+        losses += position.isLong ? feeState.fundingFee : -feeState.fundingFee;
 
         uint256 maintenanceCollateral = _getMaintenanceCollateral(_id, market, position);
 
@@ -421,8 +429,14 @@ library Execution {
      * themselves, undeservedly claiming the execution fee.
      *
      * After timeToExpiration, anyone can execute the request.
+     *
+     * Returns the price timestamp.
      */
-    function validatePriceRequest(IPriceFeed priceFeed, address _caller, bytes32 _requestKey) public view {
+    function validatePriceRequest(IPriceFeed priceFeed, address _caller, bytes32 _requestKey)
+        public
+        view
+        returns (uint48 priceTimestamp)
+    {
         IPriceFeed.RequestData memory data = priceFeed.getRequestData(_requestKey);
 
         if (data.requester != _caller) {
@@ -431,6 +445,8 @@ library Execution {
                 revert Execution_InvalidExecutor();
             }
         }
+
+        priceTimestamp = data.blockTimestamp;
     }
 
     /**
@@ -489,7 +505,24 @@ library Execution {
 
         int256 fundingFeesUsd = Position.getTotalFundingFees(_id, market, _position, _prices.indexPrice);
 
-        int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
+        // Borrowing fees are subtracted, as a positive borrowing fee indicates a loss
+        int256 losses = pnl - borrowingFeesUsd.toInt256();
+
+        /**
+         * Losses should be negative -> gain should be positive
+         *
+         * For Longs: Positive funding indicates a loss, Negative funding indicates a gain.
+         * For Shorts: Negative funding indicates a loss, Positive funding indicates a gain.
+         *
+         * If the position is long, we subtract the funding fees, as a positive funding fee indicates a loss.
+         *
+         * If the position is short, we add the funding fees, as a negative funding fee indicates a loss.
+         */
+        if (_position.isLong) {
+            losses -= fundingFeesUsd;
+        } else {
+            losses += fundingFeesUsd;
+        }
 
         if (losses < 0 && losses.abs() >= maintenanceCollateral) {
             isLiquidatable = true;
@@ -519,7 +552,24 @@ library Execution {
 
         int256 fundingFeesUsd = Position.getTotalFundingFees(_id, market, _position, _prices.indexPrice);
 
-        int256 losses = pnl + borrowingFeesUsd.toInt256() + fundingFeesUsd;
+        // Borrowing fees are subtracted, as a positive borrowing fee indicates a loss
+        int256 losses = pnl - borrowingFeesUsd.toInt256();
+
+        /**
+         * Losses should be negative -> gain should be positive
+         *
+         * For Longs: Positive funding indicates a loss, Negative funding indicates a gain.
+         * For Shorts: Negative funding indicates a loss, Positive funding indicates a gain.
+         *
+         * If the position is long, we subtract the funding fees, as a positive funding fee indicates a loss.
+         *
+         * If the position is short, we add the funding fees, as a negative funding fee indicates a loss.
+         */
+        if (_position.isLong) {
+            losses -= fundingFeesUsd;
+        } else {
+            losses += fundingFeesUsd;
+        }
 
         if (losses < 0 && losses.abs() >= maintenanceCollateral) {
             isLiquidatable = true;
@@ -673,9 +723,16 @@ library Execution {
 
         _params.request.input.sizeDelta = _positionSize;
 
-        _feeState.amountOwedToUser = _feeState.fundingFee > 0
-            ? _feeState.fundingFee.fromUsdSigned(_prices.collateralPrice, _prices.collateralBaseUnit)
-            : 0;
+        // Handle any funding that might be owed to the user
+        if (_params.request.input.isLong && _feeState.fundingFee < 0) {
+            // We owe any negative funding
+            _feeState.amountOwedToUser =
+                _feeState.fundingFee.abs().fromUsd(_prices.collateralPrice, _prices.collateralBaseUnit);
+        } else if (!_params.request.input.isLong && _feeState.fundingFee > 0) {
+            // We owe any positive funding
+            _feeState.amountOwedToUser =
+                _feeState.fundingFee.fromUsdSigned(_prices.collateralPrice, _prices.collateralBaseUnit);
+        }
 
         if (_feeState.realizedPnl > 0) _feeState.amountOwedToUser += _feeState.realizedPnl.abs();
 
@@ -707,7 +764,8 @@ library Execution {
             _feeState.feeForExecutor,
             _feeState.affiliateRebate,
             _feeState.borrowFee,
-            _feeState.fundingFee
+            _feeState.fundingFee,
+            _position.isLong
         );
 
         _position = _updatePositionForDecrease(
@@ -837,12 +895,22 @@ library Execution {
         uint256 _feeForExecutor,
         uint256 _affiliateRebate,
         uint256 _borrowFee,
-        int256 _fundingFee
+        int256 _fundingFee,
+        bool _isLong
     ) private pure returns (uint256 afterFeeAmount) {
         uint256 totalFees = _positionFee + _feeForExecutor + _affiliateRebate + _borrowFee;
 
-        if (_fundingFee < 0) totalFees += _fundingFee.abs();
-        else afterFeeAmount += _fundingFee.abs();
+        /**
+         * Longs: Positive funding = Loss, Negative funding = Gain
+         * Shorts: Negative funding = Loss, Positive funding = Gain
+         */
+        if (_isLong) {
+            if (_fundingFee > 0) totalFees += _fundingFee.abs();
+            else afterFeeAmount += _fundingFee.abs();
+        } else {
+            if (_fundingFee < 0) totalFees += _fundingFee.abs();
+            else afterFeeAmount += _fundingFee.abs();
+        }
 
         if (totalFees >= _collateralDelta) revert Execution_FeesExceedCollateralDelta();
 

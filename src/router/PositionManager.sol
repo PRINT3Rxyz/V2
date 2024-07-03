@@ -190,7 +190,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         emit MarketRequestCancelled(_requestKey, msg.sender, tokenOut, amountOut);
     }
 
-    /// @dev For market orders, can just pass in bytes32(0) as the request id, as it's only required for limits
+    /// @dev For market orders, can just pass in bytes32(0) as the request key, as it's only required for limits
     /// @dev If limit, caller needs to call Router.requestExecutionPricing before, and provide the requestKey as input
     function executePosition(MarketId _id, bytes32 _orderKey, bytes32 _requestKey, address _feeReceiver)
         external

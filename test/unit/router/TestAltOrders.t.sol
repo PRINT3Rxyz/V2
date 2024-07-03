@@ -236,7 +236,7 @@ contract TestAltOrders is Test {
         skip(1 minutes);
 
         vm.prank(OWNER);
-        bytes32 orderKey = router.createPositionRequest{value: 0.01 ether}(
+        router.createPositionRequest{value: 0.01 ether}(
             marketId, input, Position.Conditionals(false, false, 0, 0, 0, 0)
         );
 
@@ -259,14 +259,10 @@ contract TestAltOrders is Test {
 
         _setPrices(uint64(_limitPrice), 1);
 
-        // If position is liquidatable, return
-        Execution.Prices memory prices = _constructPriceStruct(_limitPrice, _isLong);
-        Position.Request memory request = tradeStorage.getOrder(marketId, orderKey);
-        (prices.impactedPrice, ) = PriceImpact.execute(marketId, market, vault, request, prices);
-        bool isLiquidatable = Execution.checkIsLiquidatableWithPriceImpact(marketId, market, position, prices);
-        if (isLiquidatable) {
-            return;
-        }
+        // Skip any tests that become liquidatable
+        bool isLiquidatable = _checkIsLiquidatable(position, _limitPrice, _sizeDelta);
+        vm.assume(!isLiquidatable);
+
         // Execute Stop Loss
         key = tradeStorage.getOrderAtIndex(marketId, 0, true);
         bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
@@ -374,15 +370,55 @@ contract TestAltOrders is Test {
         positionManager.liquidatePosition(marketId, positionKey, requestKey);
     }
 
+    // Check whether a position becomes liquidatable at the new price, for skipping invalid test cases...
+    function _checkIsLiquidatable(Position.Data memory position, uint256 _newPrice, uint256 _sizeDeltaUsd)
+        private
+        view
+        returns (bool isLiquidatable)
+    {
+        Execution.Prices memory prices = _constructPriceStruct(_newPrice, position.isLong);
+        console2.log("Prices in Test: ", prices.indexPrice, prices.collateralPrice, prices.impactedPrice);
+        try PriceImpact.estimate(
+            marketId,
+            address(market),
+            address(vault),
+            int256(_sizeDeltaUsd),
+            _newPrice,
+            position.isLong ? _newPrice : 1e30,
+            position.isLong
+        ) returns (int256 priceImpact, uint256 impactedPrice) {
+            priceImpact;
+            prices.impactedPrice = impactedPrice;
+
+            bool isLiquidatableWithPriceImpact =
+                Execution.checkIsLiquidatableWithPriceImpact(marketId, market, position, prices);
+            bool isLiquidatableWithoutPriceImpact = Execution.checkIsLiquidatable(marketId, market, position, prices);
+
+            return isLiquidatableWithPriceImpact || isLiquidatableWithoutPriceImpact;
+        } catch {
+            return true;
+        }
+    }
+
     function _setPrices(uint64 _ethPrice, uint64 _usdcPrice) private {
+        uint48 blockTimestamp = uint48(block.timestamp);
+        bytes32 requestKey = keccak256(abi.encode("PRICE REQUEST"));
+        priceFeed.updateRequestTimestamp(requestKey, blockTimestamp);
         // Set Prices
-        timestamps[0] = uint48(block.timestamp);
-        timestamps[1] = uint48(block.timestamp);
+        timestamps[0] = blockTimestamp;
+        timestamps[1] = blockTimestamp;
         meds[0] = _ethPrice;
         meds[1] = _usdcPrice;
         bytes memory encodedPrices = priceFeed.encodePrices(tickers, precisions, variances, timestamps, meds);
         vm.prank(OWNER);
         priceFeed.updatePrices(encodedPrices);
+    }
+
+    function _hasSufficientOi(uint256 _sizeDeltaUsd, uint256 _newPrice, bool _isLong) private view returns (bool) {
+        uint256 availableOi = MarketUtils.getAvailableOiUsd(
+            marketId, address(market), address(vault), _newPrice, _isLong ? _newPrice : 1e30, _isLong
+        );
+        return availableOi >= _sizeDeltaUsd;
     }
 
     function _constructPriceStruct(uint256 _ethPrice, bool _isLong)
