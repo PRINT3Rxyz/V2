@@ -66,6 +66,8 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
     // Required to create external Routers to determine optimal trading route
     mapping(string ticker => MarketId[] marketIds) private marketsByTicker;
+    // Required to determine which markets a user has created
+    mapping(address user => MarketId[] marketIds) private marketsByUser;
 
     bool private isInitialized;
     Pool.Config public defaultConfig;
@@ -171,7 +173,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
      * =========================================== User Interaction Functions ===========================================
      */
     function createNewMarket(Input calldata _input) external payable nonReentrant returns (bytes32 requestKey) {
-        uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
+        uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < marketCreationFee + priceUpdateFee) revert MarketFactory_InvalidFee();
         if (_input.maxLeverage > MAX_LEVERAGE || _input.maxLeverage == 0) revert MarketFactory_InvalidLeverage();
 
@@ -189,7 +191,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
     /// @dev Request price feed pricing for a new asset. Used before adding new tokens to M.A.Ms
     function requestAssetPricing(Input calldata _input) external payable nonReentrant {
-        uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
+        uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < priceUpdateFee + priceSupportFee) revert MarketFactory_InvalidFee();
 
         _initializeAsset(_input, priceUpdateFee);
@@ -249,6 +251,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         return marketsByTicker[_ticker];
     }
 
+    function getMarketsForUser(address _user) external view returns (MarketId[] memory) {
+        return marketsByUser[_user];
+    }
+
     /**
      * =========================================== Private Functions ===========================================
      */
@@ -298,6 +304,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         isMarket[id] = true;
         marketIds.add(MarketId.unwrap(id));
         marketsByTicker[_params.input.indexTokenTicker].push(id);
+        marketsByUser[_params.requester].push(id);
         markets[cumulativeMarketIndex] = id;
         ++cumulativeMarketIndex;
 

@@ -113,7 +113,7 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
         state.poolOwner = _newOwner;
     }
 
-    function updateConfig(MarketId _id, Pool.Config calldata _config, uint256 _borrowScale, string calldata _ticker)
+    function updateConfig(MarketId _id, Pool.Config calldata _config, uint256 _borrowScale)
         external
         onlyPoolOwner(_id)
     {
@@ -129,7 +129,7 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
 
         marketStorage[_id].config = _config;
 
-        emit MarketConfigUpdated(_ticker);
+        emit MarketConfigUpdated(_id);
     }
 
     function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {

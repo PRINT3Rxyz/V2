@@ -112,7 +112,8 @@ library Gas {
         // If limit, return 0
         if (_isLimit) return 0;
         // For PNL Requests, we double the cost as 2 feed updates are required
-        estimatedCost =
-            _hasPnlrequest ? 2 * Oracle.estimateRequestCost(priceFeed) : Oracle.estimateRequestCost(priceFeed);
+        estimatedCost = _hasPnlrequest
+            ? 2 * Oracle.estimateRequestCost(address(priceFeed))
+            : Oracle.estimateRequestCost(address(priceFeed));
     }
 }

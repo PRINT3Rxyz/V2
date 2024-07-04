@@ -14,7 +14,7 @@ contract CreateMarket is Script {
 
     function run() public {
         vm.startBroadcast();
-        uint256 requestCost = marketFactory.marketCreationFee() + Oracle.estimateRequestCost(priceFeed);
+        uint256 requestCost = marketFactory.marketCreationFee() + Oracle.estimateRequestCost(address(priceFeed));
 
         IPriceFeed.SecondaryStrategy memory secondaryStrategy = IPriceFeed.SecondaryStrategy({
             exists: false,

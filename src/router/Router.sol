@@ -324,7 +324,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         if (bytes(ticker).length == 0) revert Router_InvalidAsset();
 
-        uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
+        uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
 
         if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
 
@@ -337,7 +337,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
         Pool.Input memory request = market.getRequest(_id, _key);
         if (request.owner == address(0)) revert Router_InvalidRequest();
         // Estimate how much the functions fulfillment will cost and ensure that the user has paid enough
-        uint256 updateFee = Oracle.estimateRequestCost(priceFeed);
+        uint256 updateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < updateFee * 2) revert Router_InvalidUpdateFee();
         // Request the price update
         _requestPriceUpdate(updateFee, "");
@@ -346,7 +346,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
     }
 
     function requestPricingForAsset(string calldata _ticker) external payable returns (bytes32 priceRequestKey) {
-        uint256 priceUpdateFee = Oracle.estimateRequestCost(priceFeed);
+        uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
         priceRequestKey = _requestPriceUpdate(msg.value, _ticker);
     }
