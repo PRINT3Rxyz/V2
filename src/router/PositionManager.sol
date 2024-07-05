@@ -205,6 +205,10 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         emit ExecutePosition(MarketId.unwrap(_id), _orderKey, feeState.positionFee, feeState.affiliateRebate);
 
+        if (feeState.affiliateRebate > 0) {
+            emit UserReferred(request.user, feeState.referrer, request.input.sizeDelta, feeState.affiliateRebate);
+        }
+
         uint256 executionCost = (initialGas - gasleft()) * tx.gasprice;
 
         uint256 feeToRefund = request.input.executionFee - executionCost;

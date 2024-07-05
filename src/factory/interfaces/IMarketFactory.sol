@@ -7,11 +7,10 @@ import {MarketId} from "../../types/MarketId.sol";
 
 interface IMarketFactory {
     event MarketFactoryInitialized(address priceStorage);
-    event MarketCreated(MarketId id, string ticker);
+    event MarketCreated(MarketId id, string ticker, address vault);
     event DefaultConfigSet();
-    event MarketRequested(bytes32 indexed requestKey, string indexed indexTokenTicker);
-    event AssetSupported(string indexed ticker);
-    event AssetRequested(string indexed ticker);
+    event MarketRequested(bytes32 indexed requestKey, string indexTokenTicker);
+    event AssetRequested(string ticker);
 
     error MarketFactory_AlreadyInitialized();
     error MarketFactory_FailedToAddMarket();

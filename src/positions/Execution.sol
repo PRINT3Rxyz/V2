@@ -875,7 +875,13 @@ library Execution {
         returns (int256 pnlFactor)
     {
         pnlFactor = MarketUtils.getPnlFactor(
-            _id, market, vault, _prices.indexPrice, _prices.collateralPrice, _prices.collateralBaseUnit, _isLong
+            _id,
+            address(market),
+            address(vault),
+            _prices.indexPrice,
+            _prices.collateralPrice,
+            _prices.collateralBaseUnit,
+            _isLong
         );
     }
 

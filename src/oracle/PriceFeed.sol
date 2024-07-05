@@ -366,7 +366,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
             prices[ticker][price.timestamp] = price;
 
-            emit PriceUpdated(ticker, price.timestamp, price.med, price.variance);
+            emit PriceUpdated(price.ticker, price.timestamp, price.med, price.variance);
 
             unchecked {
                 ++i;
@@ -404,6 +404,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         }
 
         cumulativePnl[marketId][pnl.timestamp] = pnl;
+
+        emit PnlUpdated(marketId, pnl.timestamp, pnl.cumulativePnl);
     }
 
     function _blockTimestamp() internal view returns (uint48) {

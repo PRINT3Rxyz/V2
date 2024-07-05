@@ -22,13 +22,11 @@ import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
 import {Deployer} from "./Deployer.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
 
-/// @dev Needs MarketFactory Role
 /**
  * Known issues:
  * - Users can create pools with a reference price not associated to the asset provided.
  * User interfaces MUST display which pools are high-risk, and which are low risk, or at least have a verification system.
- * single asset markets with validated price sources (including reference price) are the lowest risk. Multi asset markets,
- * supporting illiquid assets, with price sources without references for verification are the highest risk.
+ * markets with validated price sources (including reference price) are the lowest risk.
  */
 contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     using EnumerableMap for EnumerableMap.DeployMap;
@@ -189,7 +187,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         emit MarketRequested(requestKey, _input.indexTokenTicker);
     }
 
-    /// @dev Request price feed pricing for a new asset. Used before adding new tokens to M.A.Ms
+    /// @dev Request price feed pricing for a new asset.
     function requestAssetPricing(Input calldata _input) external payable nonReentrant {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < priceUpdateFee + priceSupportFee) revert MarketFactory_InvalidFee();
@@ -311,7 +309,7 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         // Transfer ownership of the new vault contract to the super-user
         OwnableRoles(vault).transferOwnership(owner());
 
-        emit MarketCreated(id, _params.input.indexTokenTicker);
+        emit MarketCreated(id, _params.input.indexTokenTicker, vault);
     }
 
     function _validateSecondaryStrategy(Input calldata _params) private view {

@@ -15,6 +15,7 @@ interface IPositionManager {
     event AdlTargetRatioReached(MarketId indexed market, int256 newFactor, bool isLong);
     event MarketRequestCancelled(bytes32 indexed _requestKey, address indexed _owner, address _token, uint256 _amount);
     event PositionManager_HoldingTokens(address indexed user, address indexed amount, address indexed token);
+    event UserReferred(address indexed user, address indexed referrer, uint256 sizeDelta, uint256 affiliateRebate);
 
     error PositionManager_AccessDenied();
     error PositionManager_CancellationFailed();

@@ -181,15 +181,17 @@ contract AdlHandler is BaseHandler {
 
         uint256 scaledIndexPrice = _price * 1e30;
 
-        int256 pnlFactorLong =
-            MarketUtils.getPnlFactor(marketId, market, vault, scaledIndexPrice, scaledIndexPrice, 1e18, true);
+        int256 pnlFactorLong = MarketUtils.getPnlFactor(
+            marketId, address(market), address(vault), scaledIndexPrice, scaledIndexPrice, 1e18, true
+        );
 
         if (pnlFactorLong > 0 && pnlFactorLong.abs() > MAX_PNL_FACTOR) {
             Execution.Prices memory prices = _constructPriceStruct(_price, true);
             _executeLongAdl(_seed, scaledIndexPrice, pnlFactorLong, prices);
         }
 
-        int256 pnlFactorShort = MarketUtils.getPnlFactor(marketId, market, vault, scaledIndexPrice, 1e30, 1e6, false);
+        int256 pnlFactorShort =
+            MarketUtils.getPnlFactor(marketId, address(market), address(vault), scaledIndexPrice, 1e30, 1e6, false);
 
         if (pnlFactorShort > 0 && pnlFactorShort.abs() > MAX_PNL_FACTOR) {
             Execution.Prices memory prices = _constructPriceStruct(_price, false);

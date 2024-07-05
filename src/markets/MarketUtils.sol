@@ -508,20 +508,20 @@ library MarketUtils {
     /// @dev Pnl to Pool Ratio - e.g 0.45 = $45 profit to $100 pool.
     function getPnlFactor(
         MarketId _id,
-        IMarket market,
-        IVault vault,
+        address _market,
+        address _vault,
         uint256 _indexPrice,
         uint256 _collateralPrice,
         uint256 _collateralBaseUnit,
         bool _isLong
-    ) internal view returns (int256 pnlFactor) {
-        uint256 poolUsd = getPoolBalanceUsd(vault, _collateralPrice, _collateralBaseUnit, _isLong);
+    ) public view returns (int256 pnlFactor) {
+        uint256 poolUsd = getPoolBalanceUsd(IVault(_vault), _collateralPrice, _collateralBaseUnit, _isLong);
 
         if (poolUsd == 0) {
             return 0;
         }
 
-        int256 pnl = getMarketPnl(_id, address(market), _indexPrice, _isLong);
+        int256 pnl = getMarketPnl(_id, _market, _indexPrice, _isLong);
 
         uint256 factor = pnl.abs().divWadUp(poolUsd);
 
