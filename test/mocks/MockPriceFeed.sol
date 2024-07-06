@@ -352,7 +352,7 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
 
             prices[ticker][price.timestamp] = price;
 
-            emit PriceUpdated(ticker, price.timestamp, price.med, price.variance);
+            emit PriceUpdated(price.ticker, price.timestamp, price.med, price.variance);
 
             unchecked {
                 ++i;

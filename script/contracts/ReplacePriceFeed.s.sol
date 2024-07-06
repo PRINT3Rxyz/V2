@@ -12,15 +12,15 @@ import {PriceFeed, IPriceFeed} from "src/oracle/PriceFeed.sol";
 import {OwnableRoles} from "src/auth/OwnableRoles.sol";
 
 contract ReplacePriceFeed is Script {
-    MarketFactory marketFactory = MarketFactory(0xac5CccF314Db6f3310039484bDf14F774664d4D2);
-    Market market = Market(0xa918067e193D16bA9A5AB36270dDe2869892b276);
-    TradeStorage tradeStorage = TradeStorage(0xbfb8d62f829a395DBe27a5983a72FC5F9CA68c11);
-    TradeEngine tradeEngine = TradeEngine(0x091AEeA38a7dE33D22a4c5a4bF7366df573245B2);
-    PositionManager positionManager = PositionManager(payable(0xdF1f52F5020DEaF52C52B00367c63928771E7D71));
-    Router router = Router(payable(0xC656197971FAd28D5F8C7F5424af55ed0f10D753));
+    MarketFactory marketFactory = MarketFactory(0x516dC01DD2D76E3C3576621b28Eba05c7df61335);
+    Market market = Market(0xF9271C5C66F1C29FB48Bcd6bba5350df80160887);
+    TradeStorage tradeStorage = TradeStorage(0x9C4C333B6A43bCfb12a7d8fc76Ad8EF957C469Ec);
+    TradeEngine tradeEngine = TradeEngine(0x3acB3747667268047f668d3dC0EfDdE9D1bE393E);
+    PositionManager positionManager = PositionManager(payable(0xF7bC9A70A048AB4111D39f6893c1fE4fB4d5B51D));
+    Router router = Router(payable(0x048Ed4AEA38Dbb46F2b59e246E92360D5a8102F1));
 
     address functionsRouter = 0xf9B8fc078197181C841c296C876945aaa425B278;
-    address weth = 0xD8eca5111c93EEf563FAB704F2C6A8DD7A12c77D;
+    address weth = 0x4200000000000000000000000000000000000006;
     address link = 0xE4aB69C077896252FAFBD49EFD26B5D171A32410;
     address pyth = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
     address sequencerUptimeFeed = address(0);

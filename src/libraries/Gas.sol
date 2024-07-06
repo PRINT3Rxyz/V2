@@ -80,12 +80,10 @@ library Gas {
         Action _action,
         bool _hasPnlRequest,
         bool _isLimit
-    ) private view returns (uint256 estimatedCost, uint256 priceUpdateCost) {
-        uint256 actionCost = _getActionCost(positionManager, _action);
+    ) private view returns (uint256 actionCost, uint256 priceUpdateCost) {
+        actionCost = _getActionCost(positionManager, _action).percentage(BUFFER_PERCENTAGE);
 
         priceUpdateCost = _getPriceUpdateCost(priceFeed, _hasPnlRequest, _isLimit);
-
-        estimatedCost = (actionCost + priceUpdateCost).percentage(BUFFER_PERCENTAGE);
     }
 
     function _getActionCost(IPositionManager positionManager, Action _action) private view returns (uint256) {

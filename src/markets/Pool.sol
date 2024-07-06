@@ -30,6 +30,7 @@ library Pool {
     error Pool_InvalidMaintenanceMargin();
 
     uint8 private constant MAX_ASSETS = 100;
+    uint8 private constant MIN_LEVERAGE = 2;
     uint16 private constant MAX_LEVERAGE = 1000; // Max 1000x leverage
     uint8 private constant MIN_MAINTENANCE_MARGIN = 50; // 0.5%
     uint16 private constant MAX_MAINTENANCE_MARGIN = 100; // 1%
@@ -271,7 +272,7 @@ library Pool {
     }
 
     function validateConfig(Config calldata _config, uint256 _totalOpenInterest) internal pure {
-        if (_config.maxLeverage == 0 || _config.maxLeverage > MAX_LEVERAGE) {
+        if (_config.maxLeverage <= MIN_LEVERAGE || _config.maxLeverage > MAX_LEVERAGE) {
             revert Pool_InvalidLeverage();
         }
 
