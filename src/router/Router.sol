@@ -139,7 +139,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         uint256 priceFee = totalPriceUpdateFee / 2;
 
-        bytes32 priceRequestKey = _requestPriceUpdate(priceFee, "");
+        bytes32 priceRequestKey = _requestPriceUpdate(priceFee, market.getTicker(_id));
 
         bytes32 pnlRequestKey = _requestPnlUpdate(_id, priceFee);
 
@@ -189,7 +189,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         uint256 priceFee = totalPriceUpdateFee / 2;
 
-        bytes32 priceRequestKey = _requestPriceUpdate(priceFee, "");
+        bytes32 priceRequestKey = _requestPriceUpdate(priceFee, market.getTicker(_id));
 
         bytes32 pnlRequestKey = _requestPnlUpdate(_id, priceFee);
 

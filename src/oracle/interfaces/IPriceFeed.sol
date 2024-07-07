@@ -88,7 +88,7 @@ interface IPriceFeed {
     event AssetSupported(string ticker, uint8 tokenDecimals);
     event SupportRemoved(string ticker);
     event PriceUpdated(bytes15 indexed ticker, uint48 indexed timestamp, uint64 medianPrice, uint16 variance);
-    event PnlUpdated(MarketId indexed marketId, uint48 indexed timestamp, int128 pnlValue);
+    event PnlUpdated(bytes32 indexed marketId, uint48 indexed timestamp, int128 pnlValue);
 
     function sequencerUptimeFeed() external view returns (address);
     function initialize(

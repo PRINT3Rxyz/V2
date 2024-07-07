@@ -17,7 +17,7 @@ contract ReplacePriceFeed is Script {
     TradeStorage tradeStorage = TradeStorage(0x9C4C333B6A43bCfb12a7d8fc76Ad8EF957C469Ec);
     TradeEngine tradeEngine = TradeEngine(0x3acB3747667268047f668d3dC0EfDdE9D1bE393E);
     PositionManager positionManager = PositionManager(payable(0xF7bC9A70A048AB4111D39f6893c1fE4fB4d5B51D));
-    Router router = Router(payable(0x048Ed4AEA38Dbb46F2b59e246E92360D5a8102F1));
+    Router router = Router(payable(0x4d653708754BEe9eC3546A93729018C6Ef574d75));
 
     address functionsRouter = 0xf9B8fc078197181C841c296C876945aaa425B278;
     address weth = 0x4200000000000000000000000000000000000006;

@@ -405,7 +405,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
         cumulativePnl[marketId][pnl.timestamp] = pnl;
 
-        emit PnlUpdated(marketId, pnl.timestamp, pnl.cumulativePnl);
+        emit PnlUpdated(MarketId.unwrap(marketId), pnl.timestamp, pnl.cumulativePnl);
     }
 
     function _blockTimestamp() internal view returns (uint48) {

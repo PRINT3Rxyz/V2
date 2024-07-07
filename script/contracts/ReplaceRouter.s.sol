@@ -9,17 +9,17 @@ import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
 import {PriceFeed} from "src/oracle/PriceFeed.sol";
 
 contract ReplaceRouter is Script {
-    address marketFactory = 0xac5CccF314Db6f3310039484bDf14F774664d4D2;
-    address market = 0xa918067e193D16bA9A5AB36270dDe2869892b276;
-    address priceFeed = 0x4C3C29132894f2fB032242E52fb16B5A1ede5A04;
+    address marketFactory = 0x516dC01DD2D76E3C3576621b28Eba05c7df61335;
+    address market = 0xF9271C5C66F1C29FB48Bcd6bba5350df80160887;
+    address priceFeed = 0xD6486A71312e4Ee14224b1AD8402099AD80f5837;
     address usdc = 0x9881f8b307CC3383500b432a8Ce9597fAfc73A77;
-    address weth = 0xD8eca5111c93EEf563FAB704F2C6A8DD7A12c77D;
-    address positionManager = 0xdF1f52F5020DEaF52C52B00367c63928771E7D71;
-    address rewardTracker = 0xd076E2748dDD64fc26D0E09154dDD750F8FeBD40;
+    address weth = 0x4200000000000000000000000000000000000006;
+    address positionManager = 0xF7bC9A70A048AB4111D39f6893c1fE4fB4d5B51D;
+    address rewardTracker = 0x10d8766f5155AdD3d629ddf44b7f1e34De0a4667;
 
-    address tradeStorage = 0xbfb8d62f829a395DBe27a5983a72FC5F9CA68c11;
+    address tradeStorage = 0x9C4C333B6A43bCfb12a7d8fc76Ad8EF957C469Ec;
 
-    address oldRouter = 0x1246c3E94a18609E683Aa376549E3d9B8d28A8C0;
+    address oldRouter = 0x38B0Cf9DB27DcDb23Cb44E3DC3b6c44150126085;
 
     uint256 internal constant _ROLE_3 = 1 << 3;
 
