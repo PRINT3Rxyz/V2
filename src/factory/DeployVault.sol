@@ -2,11 +2,12 @@
 pragma solidity 0.8.23;
 
 import {IMarketFactory} from "./interfaces/IMarketFactory.sol";
-import {Vault, IVault} from "../markets/Vault.sol";
+import {Vault} from "../markets/Vault.sol";
+import {RewardTracker} from "../rewards/RewardTracker.sol";
 
 /// @dev - External library to deploy contracts
-library Deployer {
-    function deployVault(IMarketFactory.Request calldata _params, address _weth, address _usdc)
+library DeployVault {
+    function run(IMarketFactory.Request calldata _params, address _weth, address _usdc, bytes32 _marketId)
         external
         returns (address)
     {
@@ -14,7 +15,12 @@ library Deployer {
             keccak256(abi.encode(_params.requester, _params.input.marketTokenName, _params.input.marketTokenSymbol));
         return address(
             new Vault{salt: salt}(
-                _params.requester, _weth, _usdc, _params.input.marketTokenName, _params.input.marketTokenSymbol
+                _params.requester,
+                _weth,
+                _usdc,
+                _params.input.marketTokenName,
+                _params.input.marketTokenSymbol,
+                _marketId
             )
         );
     }

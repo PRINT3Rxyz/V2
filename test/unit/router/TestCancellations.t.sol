@@ -15,7 +15,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 import {MockUSDC} from "../../mocks/MockUSDC.sol";
 import {Position} from "src/positions/Position.sol";
 import {MarketUtils} from "src/markets/MarketUtils.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
 import {MathUtils} from "src/libraries/MathUtils.sol";
 import {MockPriceFeed} from "../../mocks/MockPriceFeed.sol";
@@ -41,7 +41,7 @@ contract TestCancellations is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;
@@ -154,7 +154,7 @@ contract TestCancellations is Test {
         vm.label(address(vault), "vault");
         tradeStorage = ITradeStorage(market.tradeStorage());
         vm.label(address(tradeStorage), "tradeStorage");
-        rewardTracker = GlobalRewardTracker(address(vault.rewardTracker()));
+        rewardTracker = RewardTracker(address(vault.rewardTracker()));
         vm.label(address(rewardTracker), "rewardTracker");
         // Call the deposit function with sufficient gas
         vm.prank(OWNER);
@@ -183,11 +183,11 @@ contract TestCancellations is Test {
             collateralToken: weth,
             collateralDelta: collateralDelta,
             sizeDelta: _sizeDelta,
-            limitPrice: 0,
+            limitPrice: 10_000e30,
             maxSlippage: 0.0003e30, // 0.3%
             executionFee: 0.01 ether,
             isLong: true,
-            isLimit: false,
+            isLimit: true,
             isIncrease: true,
             reverseWrap: true,
             triggerAbove: false
@@ -201,8 +201,8 @@ contract TestCancellations is Test {
 
         uint256 wethBalanceBefore = WETH(weth).balanceOf(address(rejectEther));
 
-        vm.prank(OWNER);
-        positionManager.cancelOrderRequest(marketId, orderKey, false);
+        vm.prank(address(rejectEther));
+        positionManager.cancelOrderRequest(marketId, orderKey, true);
 
         uint256 wethBalanceAfter = WETH(weth).balanceOf(address(rejectEther));
 

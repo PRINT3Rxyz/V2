@@ -120,7 +120,8 @@ contract PositionHandler is BaseHandler {
         }
         // Execute Request
         vm.prank(owner);
-        positionManager.executePosition(marketId, key, bytes32(0), owner);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), owner);
+        assertTrue(success, "Position execution failed");
     }
 
     /**
@@ -193,7 +194,8 @@ contract PositionHandler is BaseHandler {
 
         // Execute Request
         vm.prank(owner);
-        positionManager.executePosition(marketId, orderKey, bytes32(0), owner);
+        bool success = positionManager.executePosition(marketId, orderKey, bytes32(0), owner);
+        assertTrue(success, "Position execution failed");
     }
 
     /**

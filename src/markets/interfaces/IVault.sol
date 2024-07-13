@@ -6,7 +6,7 @@ import {IMarket} from "./IMarket.sol";
 import {Pool} from "../Pool.sol";
 import {EnumerableMap} from "../../libraries/EnumerableMap.sol";
 import {Oracle} from "../../oracle/Oracle.sol";
-import {IGlobalRewardTracker} from "../../rewards/interfaces/IGlobalRewardTracker.sol";
+import {IRewardTracker} from "../../rewards/interfaces/IRewardTracker.sol";
 
 interface IVault is IERC20 {
     // Only used in memory as a cache for updating state
@@ -40,10 +40,10 @@ interface IVault is IERC20 {
     }
 
     event DepositExecuted(
-        bytes32 indexed key, address indexed account, address indexed token, uint256 amountIn, uint256 mintAmount
+        bytes32 indexed key, address indexed account, uint256 amountIn, uint256 mintAmount, bool isLongToken
     );
     event WithdrawalExecuted(
-        bytes32 indexed key, address indexed account, address indexed token, uint256 amountIn, uint256 amountOut
+        bytes32 indexed key, address indexed account, uint256 amountIn, uint256 amountOut, bool isLongToken
     );
     event FeesAccumulated(uint256 amount, bool isLong);
     event FeesWithdrawn(uint256 longFees, uint256 shortFees);
@@ -80,5 +80,5 @@ interface IVault is IERC20 {
     function longTokensReserved() external view returns (uint256);
     function shortTokensReserved() external view returns (uint256);
     function totalAvailableLiquidity(bool _isLong) external view returns (uint256 total);
-    function rewardTracker() external view returns (IGlobalRewardTracker);
+    function rewardTracker() external view returns (IRewardTracker);
 }

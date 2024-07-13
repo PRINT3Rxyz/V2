@@ -10,4 +10,5 @@ interface IFeeDistributor {
         view
         returns (uint256 wethTokensPerInterval, uint256 usdcTokensPerInterval);
     function addVault(address _vault) external;
+    function addRewardTracker(address _rewardTracker) external;
 }

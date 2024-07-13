@@ -11,7 +11,7 @@ import {EnumerableMap} from "../libraries/EnumerableMap.sol";
 import {IMarket} from "./interfaces/IMarket.sol";
 import {IWETH} from "../tokens/interfaces/IWETH.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
-import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
+import {IRewardTracker} from "../rewards/interfaces/IRewardTracker.sol";
 import {IFeeDistributor} from "../rewards/interfaces/IFeeDistributor.sol";
 import {Units} from "../libraries/Units.sol";
 
@@ -27,8 +27,10 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
     uint64 private constant FEE_TO_LPS = 0.8e18; // 80%
 
     IMarket market;
-    IGlobalRewardTracker public rewardTracker;
+    IRewardTracker public rewardTracker;
     IFeeDistributor public feeDistributor;
+
+    bytes32 public marketId;
 
     address public poolOwner;
     address public feeReceiver;
@@ -49,14 +51,20 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
 
     mapping(bool _isLong => uint256 amount) public badDebt;
 
-    constructor(address _poolOwner, address _weth, address _usdc, string memory _name, string memory _symbol)
-        ERC20(_name, _symbol, 18)
-    {
+    constructor(
+        address _poolOwner,
+        address _weth,
+        address _usdc,
+        string memory _name,
+        string memory _symbol,
+        bytes32 _marketId
+    ) ERC20(_name, _symbol, 18) {
         _initializeOwner(msg.sender);
         _grantRoles(_poolOwner, _ROLE_2); // Pool Owner
         poolOwner = _poolOwner;
         WETH = _weth;
         USDC = _usdc;
+        marketId = _marketId;
     }
 
     /// @dev Required to receive ETH when unwrapping WETH for transfers out.
@@ -73,7 +81,7 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         if (isInitialized) revert Vault_AlreadyInitialized();
         market = IMarket(_market);
         feeDistributor = IFeeDistributor(_feeDistributor);
-        rewardTracker = IGlobalRewardTracker(_rewardTracker);
+        rewardTracker = IRewardTracker(_rewardTracker);
         feeReceiver = _feeReceiver;
         transferGasLimit = _transferGasLimit;
         _grantRoles(_market, _ROLE_7);
@@ -232,7 +240,9 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         _accumulateFees(fee, _params.deposit.isLongToken);
         _updatePoolBalance(afterFeeAmount, _params.deposit.isLongToken, true);
 
-        emit DepositExecuted(_params.key, _params.deposit.owner, _tokenIn, _params.deposit.amountIn, mintAmount);
+        emit DepositExecuted(
+            _params.key, _params.deposit.owner, _params.deposit.amountIn, mintAmount, _params.deposit.isLongToken
+        );
 
         _mint(address(_positionManager), mintAmount);
 
@@ -266,7 +276,11 @@ contract Vault is ERC20, IVault, OwnableRoles, ReentrancyGuard {
         _updatePoolBalance(_params.amountOut, _params.withdrawal.isLongToken, false);
 
         emit WithdrawalExecuted(
-            _params.key, _params.withdrawal.owner, _tokenOut, _params.withdrawal.amountIn, transferAmountOut
+            _params.key,
+            _params.withdrawal.owner,
+            _params.withdrawal.amountIn,
+            transferAmountOut,
+            _params.withdrawal.isLongToken
         );
 
         _transferOutTokens(

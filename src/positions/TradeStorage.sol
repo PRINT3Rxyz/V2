@@ -191,13 +191,20 @@ contract TradeStorage is ITradeStorage, OwnableRoles, ReentrancyGuard {
         external
         onlyRoles(_ROLE_1)
         nonReentrant
-        returns (Execution.FeeState memory feeState, Position.Request memory request)
+        returns (Execution.FeeState memory feeState, Position.Request memory request, bool success)
     {
         Position.Settlement memory params;
         params.orderKey = _orderKey;
         params.limitRequestKey = _limitRequestKey;
         params.feeReceiver = _feeReceiver;
-        return tradeEngine.executePositionRequest(_id, params);
+
+        try tradeEngine.executePositionRequest(_id, params) returns (
+            Execution.FeeState memory fs, Position.Request memory req
+        ) {
+            return (fs, req, true);
+        } catch {
+            return (feeState, request, false);
+        }
     }
 
     function liquidatePosition(MarketId _id, bytes32 _positionKey, bytes32 _requestKey, address _liquidator)

@@ -7,13 +7,13 @@ import {IERC20} from "../tokens/interfaces/IERC20.sol";
 import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
 import {ReentrancyGuard} from "../utils/ReentrancyGuard.sol";
 import {IFeeDistributor} from "./interfaces/IFeeDistributor.sol";
-import {IGlobalRewardTracker} from "./interfaces/IGlobalRewardTracker.sol";
+import {IRewardTracker} from "./interfaces/IRewardTracker.sol";
 import {OwnableRoles} from "../auth/OwnableRoles.sol";
 import {IMarket} from "../markets/interfaces/IMarket.sol";
 import {EnumerableSetLib} from "../libraries/EnumerableSetLib.sol";
 import {MathUtils} from "../libraries/MathUtils.sol";
 
-contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, OwnableRoles {
+contract RewardTracker is ERC20, ReentrancyGuard, IRewardTracker, OwnableRoles {
     using SafeTransferLib for IERC20;
     using EnumerableSetLib for EnumerableSetLib.AddressSet;
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
@@ -27,28 +27,31 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
     bool public isInitialized;
 
     address public distributor;
-    /**
-     * Mapping to store multiple deposit tokens. Store total deposit supply.
-     */
-    mapping(address depositToken => bool) public isDepositToken;
-    mapping(address depositToken => uint256) public totalDepositSupply;
-    mapping(address user => EnumerableSetLib.AddressSet) private userDepositTokens;
+
+    address public depositToken;
+
+    uint256 public totalDepositSupply;
 
     uint256 public cumulativeWethRewardPerToken;
     uint256 public cumulativeUsdcRewardPerToken;
 
-    mapping(address account => mapping(address depositToken => StakeData)) private stakeData;
+    mapping(address account => StakeData) private stakeData;
 
     mapping(address account => EnumerableSetLib.Bytes32Set) private lockKeys;
+
     mapping(bytes32 key => LockData) public lockData;
+
     mapping(address account => uint256 amount) public lockedAmounts;
 
     bool public inPrivateStakingMode;
     bool public inPrivateClaimingMode;
     mapping(address => bool) public isHandler;
 
-    constructor(address _weth, address _usdc, string memory _name, string memory _symbol) ERC20(_name, _symbol, 18) {
+    constructor(address _depositToken, address _weth, address _usdc, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol, 18)
+    {
         _initializeOwner(msg.sender);
+        depositToken = _depositToken;
         WETH = _weth;
         USDC = _usdc;
         name = _name;
@@ -58,14 +61,16 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
     /**
      * =========================================== Setter Functions ===========================================
      */
-    function initialize(address _distributor) external onlyOwner {
+    function initialize(address _distributor, address _marketFactory, address _positionManager, address _router)
+        external
+        onlyOwner
+    {
         if (isInitialized) revert RewardTracker_AlreadyInitialized();
         isInitialized = true;
         distributor = _distributor;
-    }
-
-    function addDepositToken(address _depositToken) external onlyRoles(_ROLE_0) {
-        isDepositToken[_depositToken] = true;
+        grantRoles(_marketFactory, _ROLE_0);
+        isHandler[_positionManager] = true;
+        isHandler[_router] = true;
     }
 
     function setInPrivateStakingMode(bool _inPrivateStakingMode) external onlyOwner {
@@ -127,52 +132,44 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
     /**
      * =========================================== Core Functions ===========================================
      */
-    function stake(address _depositToken, uint256 _amount, uint40 _stakeDuration) external nonReentrant {
+    function stake(uint256 _amount, uint40 _stakeDuration) external nonReentrant {
         if (inPrivateStakingMode) revert RewardTracker_ActionDisbaled();
-        _validateDepositToken(_depositToken);
-        _stake(msg.sender, msg.sender, _depositToken, _amount);
+
+        _stake(msg.sender, msg.sender, _amount);
         if (_stakeDuration > 0) {
-            _lock(msg.sender, _depositToken, _amount, _stakeDuration);
+            _lock(msg.sender, _amount, _stakeDuration);
         }
     }
 
-    function stakeForAccount(
-        address _fundingAccount,
-        address _account,
-        address _depositToken,
-        uint256 _amount,
-        uint40 _stakeDuration
-    ) external nonReentrant {
-        _validateHandler();
-        _validateDepositToken(_depositToken);
-        _stake(_fundingAccount, _account, _depositToken, _amount);
-        if (_stakeDuration > 0) {
-            _lock(_account, _depositToken, _amount, _stakeDuration);
-        }
-    }
-
-    function unstake(address _depositToken, uint256 _amount, bytes32[] calldata _lockKeys) external nonReentrant {
-        if (inPrivateStakingMode) revert RewardTracker_ActionDisbaled();
-        _validateDepositToken(_depositToken);
-
-        if (_lockKeys.length > 0) {
-            _unlock(msg.sender, _lockKeys);
-        }
-        _unstake(msg.sender, _depositToken, _amount, msg.sender);
-    }
-
-    /// @dev No optional unlock for unstaking for another account.
-    function unstakeForAccount(address _account, address _depositToken, uint256 _amount, address _receiver)
+    function stakeForAccount(address _fundingAccount, address _account, uint256 _amount, uint40 _stakeDuration)
         external
         nonReentrant
     {
         _validateHandler();
-        _validateDepositToken(_depositToken);
-        _unstake(_account, _depositToken, _amount, _receiver);
+
+        _stake(_fundingAccount, _account, _amount);
+        if (_stakeDuration > 0) {
+            _lock(_account, _amount, _stakeDuration);
+        }
     }
 
-    function updateRewards(address _depositToken) external nonReentrant {
-        _updateRewards(address(0), _depositToken);
+    function unstake(uint256 _amount, bytes32[] calldata _lockKeys) external nonReentrant {
+        if (inPrivateStakingMode) revert RewardTracker_ActionDisbaled();
+
+        if (_lockKeys.length > 0) {
+            _unlock(msg.sender, _lockKeys);
+        }
+        _unstake(msg.sender, _amount, msg.sender);
+    }
+
+    /// @dev No optional unlock for unstaking for another account.
+    function unstakeForAccount(address _account, uint256 _amount, address _receiver) external nonReentrant {
+        _validateHandler();
+        _unstake(_account, _amount, _receiver);
+    }
+
+    function updateRewards() external nonReentrant {
+        _updateRewards(address(0));
     }
 
     function extendLockDuration(bytes32 _lockKey, uint40 _timeToExtend) external nonReentrant {
@@ -181,68 +178,30 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         position.unlockDate += _timeToExtend;
     }
 
-    function lock(address _depositToken, uint256 _amount, uint40 _lockDuration) external nonReentrant {
-        _validateDepositToken(_depositToken);
+    function lock(uint256 _amount, uint40 _lockDuration) external nonReentrant {
         if (_amount > _getAvailableBalance(msg.sender)) revert RewardTracker_AmountExceedsBalance();
         if (_lockDuration == 0) revert RewardTracker_InvalidAmount();
-        _lock(msg.sender, _depositToken, _amount, _lockDuration);
+        _lock(msg.sender, _amount, _lockDuration);
     }
 
     function unlock(bytes32[] calldata _lockKeys) external nonReentrant {
         _unlock(msg.sender, _lockKeys);
     }
 
-    function claimAllRewards(address _receiver) external nonReentrant {
+    function claim(address _receiver) external nonReentrant returns (uint256 wethAmount, uint256 usdcAmount) {
         if (inPrivateClaimingMode) revert RewardTracker_ActionDisbaled();
-        address[] memory depositTokens = userDepositTokens[msg.sender].values();
-        uint256 len = depositTokens.length;
-        for (uint256 i = 0; i < len;) {
-            _claim(msg.sender, depositTokens[i], _receiver);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function claim(address _depositToken, address _receiver)
-        external
-        nonReentrant
-        returns (uint256 wethAmount, uint256 usdcAmount)
-    {
-        if (inPrivateClaimingMode) revert RewardTracker_ActionDisbaled();
-        return _claim(msg.sender, _depositToken, _receiver);
+        return _claim(msg.sender, _receiver);
     }
 
     /**
      * =========================================== Getter Functions ===========================================
      */
-    function tokensPerInterval(address _depositToken)
-        external
-        view
-        returns (uint256 wethTokensPerInterval, uint256 usdcTokensPerInterval)
-    {
-        (wethTokensPerInterval, usdcTokensPerInterval) = IFeeDistributor(distributor).tokensPerInterval(_depositToken);
+    function tokensPerInterval() external view returns (uint256 wethTokensPerInterval, uint256 usdcTokensPerInterval) {
+        (wethTokensPerInterval, usdcTokensPerInterval) = IFeeDistributor(distributor).tokensPerInterval(depositToken);
     }
 
-    function getAllClaimableRewards(address _account) external view returns (uint256 wethAmount, uint256 usdcAmount) {
-        address[] memory depositTokens = userDepositTokens[_account].values();
-        uint256 len = depositTokens.length;
-        for (uint256 i = 0; i < len;) {
-            (uint256 wethReward, uint256 usdcReward) = claimable(_account, depositTokens[i]);
-            wethAmount += wethReward;
-            usdcAmount += usdcReward;
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function claimable(address _account, address _depositToken)
-        public
-        view
-        returns (uint256 wethAmount, uint256 usdcAmount)
-    {
-        StakeData storage userStake = stakeData[_account][_depositToken];
+    function claimable(address _account) public view returns (uint256 wethAmount, uint256 usdcAmount) {
+        StakeData storage userStake = stakeData[_account];
 
         uint256 stakedAmount = userStake.stakedAmount;
 
@@ -251,7 +210,7 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         }
 
         uint256 supply = totalSupply;
-        (uint256 pendingWeth, uint256 pendingUsdc) = IFeeDistributor(distributor).pendingRewards(_depositToken);
+        (uint256 pendingWeth, uint256 pendingUsdc) = IFeeDistributor(distributor).pendingRewards(depositToken);
 
         uint256 nextCumulativeWethPerToken = cumulativeWethRewardPerToken + pendingWeth.mulDiv(PRECISION, supply);
         uint256 nextCumulativeUsdcPerToken = cumulativeUsdcRewardPerToken + pendingUsdc.mulDiv(PRECISION, supply);
@@ -263,16 +222,12 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
             + stakedAmount.mulDiv(nextCumulativeUsdcPerToken - userStake.prevCumulativeUsdcPerToken, PRECISION);
     }
 
-    function getStakeData(address _account, address _depositToken) external view returns (StakeData memory) {
-        return stakeData[_account][_depositToken];
+    function getStakeData(address _account) external view returns (StakeData memory) {
+        return stakeData[_account];
     }
 
     function getLockData(bytes32 _lockKey) external view returns (LockData memory) {
         return lockData[_lockKey];
-    }
-
-    function getUserDepositTokens(address _user) external view returns (address[] memory) {
-        return userDepositTokens[_user].values();
     }
 
     function getRemainingLockTime(bytes32 _lockKey) external view returns (uint256) {
@@ -306,13 +261,10 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
     /**
      * =========================================== Internal Functions ===========================================
      */
-    function _claim(address _account, address _depositToken, address _receiver)
-        private
-        returns (uint256 wethAmount, uint256 usdcAmount)
-    {
-        _updateRewards(_account, _depositToken);
+    function _claim(address _account, address _receiver) private returns (uint256 wethAmount, uint256 usdcAmount) {
+        _updateRewards(_account);
 
-        StakeData storage userStake = stakeData[_account][_depositToken];
+        StakeData storage userStake = stakeData[_account];
 
         wethAmount = userStake.claimableWethReward;
         usdcAmount = userStake.claimableUsdcReward;
@@ -326,37 +278,29 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         emit Claim(_receiver, wethAmount, usdcAmount);
     }
 
-    function _validateDepositToken(address _depositToken) private view {
-        if (!isDepositToken[_depositToken]) revert RewardTracker_InvalidDepositToken();
-    }
-
     function _validateHandler() private view {
         if (!isHandler[msg.sender]) revert RewardTracker_Forbidden();
     }
 
-    function _stake(address _fundingAccount, address _account, address _depositToken, uint256 _amount) private {
+    function _stake(address _fundingAccount, address _account, uint256 _amount) private {
         if (_amount == 0) revert RewardTracker_InvalidAmount();
 
-        IERC20(_depositToken).safeTransferFrom(_fundingAccount, address(this), _amount);
+        IERC20(depositToken).safeTransferFrom(_fundingAccount, address(this), _amount);
 
-        if (!userDepositTokens[_account].contains(_depositToken)) {
-            userDepositTokens[_account].add(_depositToken);
-        }
+        _updateRewards(_account);
 
-        _updateRewards(_account, _depositToken);
-
-        StakeData storage userStake = stakeData[_account][_depositToken];
+        StakeData storage userStake = stakeData[_account];
 
         userStake.stakedAmount += _amount;
         userStake.depositBalance += _amount;
-        totalDepositSupply[_depositToken] += _amount;
+        totalDepositSupply += _amount;
 
         _mint(_account, _amount);
     }
 
     /// @notice While locked, tokens become non-transferrable, and users can't unstake.
     /// A user can still claim rewards while their tokens are locked.
-    function _lock(address _account, address _depositToken, uint256 _amount, uint40 _lockDuration) private {
+    function _lock(address _account, uint256 _amount, uint40 _lockDuration) private {
         LockData memory position = LockData({
             depositAmount: _amount,
             lockedAt: _blockTimestamp(),
@@ -364,7 +308,7 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
             owner: _account
         });
 
-        bytes32 key = _generateLockKey(_account, _depositToken, position.unlockDate);
+        bytes32 key = _generateLockKey(_account, position.unlockDate);
         if (lockKeys[_account].contains(key)) revert RewardTracker_PositionAlreadyExists();
 
         lockKeys[_account].add(key);
@@ -372,18 +316,14 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         lockedAmounts[_account] += _amount;
     }
 
-    function _unstake(address _account, address _depositToken, uint256 _amount, address _receiver) private {
+    function _unstake(address _account, uint256 _amount, address _receiver) private {
         if (_amount == 0) revert RewardTracker_InvalidAmount();
-
-        if (!userDepositTokens[_account].contains(_depositToken)) {
-            revert RewardTracker_InvalidDepositToken();
-        }
 
         if (_getAvailableBalance(_account) < _amount) revert RewardTracker_AmountExceedsBalance();
 
-        _updateRewards(_account, _depositToken);
+        _updateRewards(_account);
 
-        StakeData storage userStake = stakeData[_account][_depositToken];
+        StakeData storage userStake = stakeData[_account];
 
         uint256 stakedAmount = userStake.stakedAmount;
         if (stakedAmount < _amount) revert RewardTracker_AmountExceedsStake();
@@ -392,15 +332,13 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
 
         uint256 depositBalance = userStake.depositBalance;
         if (depositBalance < _amount) revert RewardTracker_AmountExceedsBalance();
-        if (_amount == depositBalance) {
-            if (!userDepositTokens[_account].remove(_depositToken)) revert RewardTracker_FailedToRemoveDepositToken();
-        }
+
         userStake.depositBalance = depositBalance - _amount;
-        totalDepositSupply[_depositToken] -= _amount;
+        totalDepositSupply -= _amount;
 
         _burn(_account, _amount);
 
-        IERC20(_depositToken).safeTransfer(_receiver, _amount);
+        IERC20(depositToken).safeTransfer(_receiver, _amount);
     }
 
     function _unlock(address _account, bytes32[] calldata _lockKeys) private {
@@ -420,8 +358,8 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         lockedAmounts[_account] -= totalAmount;
     }
 
-    function _updateRewards(address _account, address _depositToken) private {
-        (uint256 wethReward, uint256 usdcReward) = IFeeDistributor(distributor).distribute(_depositToken);
+    function _updateRewards(address _account) private {
+        (uint256 wethReward, uint256 usdcReward) = IFeeDistributor(distributor).distribute(depositToken);
 
         uint256 supply = totalSupply;
 
@@ -446,20 +384,17 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         }
 
         if (_account != address(0)) {
-            _updateRewardsForAccount(
-                _account, _depositToken, _cumulativeWethRewardPerToken, _cumulativeUsdcRewardPerToken
-            );
+            _updateRewardsForAccount(_account, _cumulativeWethRewardPerToken, _cumulativeUsdcRewardPerToken);
         }
     }
 
     /// @dev private function to prevent STD Err
     function _updateRewardsForAccount(
         address _account,
-        address _depositToken,
         uint256 _cumulativeWethRewardPerToken,
         uint256 _cumulativeUsdcRewardPerToken
     ) private {
-        StakeData storage userStake = stakeData[_account][_depositToken];
+        StakeData storage userStake = stakeData[_account];
 
         uint256 stakedAmount = userStake.stakedAmount;
 
@@ -507,11 +442,7 @@ contract GlobalRewardTracker is ERC20, ReentrancyGuard, IGlobalRewardTracker, Ow
         return balanceOf[_account] - lockedAmounts[_account];
     }
 
-    function _generateLockKey(address _account, address _depositToken, uint40 _unlockDate)
-        private
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(_account, _depositToken, _unlockDate));
+    function _generateLockKey(address _account, uint40 _unlockDate) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_account, _unlockDate));
     }
 }

@@ -19,7 +19,7 @@ import {IPositionManager} from "./interfaces/IPositionManager.sol";
 import {IWETH} from "../tokens/interfaces/IWETH.sol";
 import {Borrowing} from "../libraries/Borrowing.sol";
 import {IVault} from "../markets/interfaces/IVault.sol";
-import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
+import {IRewardTracker} from "../rewards/interfaces/IRewardTracker.sol";
 import {MarketId} from "../types/MarketId.sol";
 /// @dev Needs PositionManager Role
 // All keeper interactions should come through this contract
@@ -32,8 +32,6 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
     IWETH immutable WETH;
     IERC20 immutable USDC;
-
-    IGlobalRewardTracker public rewardTracker;
 
     uint256 constant GAS_BUFFER = 10000;
 
@@ -52,11 +50,12 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
     uint256 public averageWithdrawalCost;
     uint256 public averagePositionCost;
 
+    mapping(bytes32 orderKey => bool attempted) public executionAttempted;
+
     constructor(
         address _marketFactory,
         address _market,
         address _tradeStorage,
-        address _rewardTracker,
         address _referralStorage,
         address _priceFeed,
         address _tradeEngine,
@@ -68,7 +67,6 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         market = IMarket(_market);
         tradeStorage = ITradeStorage(_tradeStorage);
         referralStorage = IReferralStorage(_referralStorage);
-        rewardTracker = IGlobalRewardTracker(_rewardTracker);
         priceFeed = IPriceFeed(_priceFeed);
         WETH = IWETH(_weth);
         USDC = IERC20(_usdc);
@@ -109,10 +107,6 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         referralStorage = _referralStorage;
     }
 
-    function updateRewardTracker(IGlobalRewardTracker _rewardTracker) external onlyOwner {
-        rewardTracker = _rewardTracker;
-    }
-
     function executeDeposit(MarketId _id, bytes32 _key) external payable isValidMarket(_id) nonReentrant {
         uint256 initialGas = gasleft();
 
@@ -127,11 +121,11 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         uint256 mintAmount = market.executeDeposit(_id, params);
 
+        IRewardTracker rewardTracker = IVault(vault).rewardTracker();
+
         IVault(vault).approve(address(rewardTracker), mintAmount);
 
-        rewardTracker.stakeForAccount(
-            address(this), params.deposit.owner, vault, mintAmount, params.deposit.stakeDuration
-        );
+        rewardTracker.stakeForAccount(address(this), params.deposit.owner, mintAmount, params.deposit.stakeDuration);
 
         uint256 feeForExecutor = ((initialGas - gasleft()) * tx.gasprice) + ((GAS_BUFFER + 21000) * tx.gasprice);
 
@@ -140,7 +134,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         SafeTransferLib.safeTransferETH(msg.sender, feeForExecutor);
         if (feeToRefund > 0) {
-            WETH.sendEthNoRevert(params.deposit.owner, feeToRefund, transferGasLimit, owner());
+            SafeTransferLib.sendEthNoRevert(WETH, params.deposit.owner, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -174,7 +168,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         SafeTransferLib.safeTransferETH(msg.sender, feeForExecutor);
 
         if (feeToRefund > 0) {
-            WETH.sendEthNoRevert(params.withdrawal.owner, feeToRefund, transferGasLimit, owner());
+            SafeTransferLib.sendEthNoRevert(WETH, params.withdrawal.owner, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -183,7 +177,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         if (shouldUnwrap) {
             WETH.withdraw(amountOut);
-            WETH.sendEthNoRevert(msg.sender, amountOut, transferGasLimit, owner());
+            SafeTransferLib.sendEthNoRevert(WETH, msg.sender, amountOut, transferGasLimit, owner());
         } else {
             IERC20(tokenOut).sendTokensNoRevert(msg.sender, amountOut, owner());
         }
@@ -197,16 +191,27 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         payable
         isValidMarket(_id)
         nonReentrant
+        returns (bool executed)
     {
         uint256 initialGas = gasleft();
 
-        (Execution.FeeState memory feeState, Position.Request memory request) =
+        (Execution.FeeState memory feeState, Position.Request memory request, bool success) =
             tradeStorage.executePositionRequest(_id, _orderKey, _requestKey, _feeReceiver);
+
+        // Flag that execution has been attempted
+        if (!success) {
+            executionAttempted[_orderKey] = true;
+            return false;
+        }
+
+        executed = true;
 
         emit ExecutePosition(MarketId.unwrap(_id), _orderKey, feeState.positionFee, feeState.affiliateRebate);
 
         if (feeState.affiliateRebate > 0) {
-            emit UserReferred(request.user, feeState.referrer, request.input.sizeDelta, feeState.affiliateRebate);
+            emit UserReferred(
+                request.user, feeState.referrer, request.input.sizeDelta, feeState.affiliateRebate, request.input.isLong
+            );
         }
 
         uint256 executionCost = (initialGas - gasleft()) * tx.gasprice;
@@ -216,7 +221,7 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         SafeTransferLib.safeTransferETH(msg.sender, executionCost);
 
         if (feeToRefund > 0) {
-            WETH.sendEthNoRevert(request.user, feeToRefund, transferGasLimit, owner());
+            SafeTransferLib.sendEthNoRevert(WETH, request.user, feeToRefund, transferGasLimit, owner());
         }
     }
 
@@ -242,12 +247,22 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
 
         if (request.user == address(0)) revert PositionManager_RequestDoesNotExist();
 
-        if (msg.sender != request.user) {
-            if (!priceFeed.isRequestValid(request.requestKey)) revert PositionManager_CancellationFailed();
-        }
-
         if (block.timestamp < request.requestTimestamp + tradeStorage.minCancellationTime()) {
             revert PositionManager_InsufficientDelay();
+        }
+
+        // If it's a market order, we need to:
+        // a) ensure permissions to execute
+        // b) ensure that execution has been attempted before allowing cancellation
+        if (!request.input.isLimit) {
+            if (msg.sender != request.user) {
+                if (!priceFeed.isRequestValid(request.requestKey)) revert PositionManager_CancellationFailed();
+            }
+
+            _validateCancellation(_key, request.requestKey);
+        } else {
+            // Only the user can cancel a limit order
+            if (msg.sender != request.user) revert PositionManager_CancellationFailed();
         }
 
         tradeStorage.cancelOrderRequest(_id, _key, _isLimit);
@@ -257,10 +272,12 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         (uint256 refundAmount, uint256 amountForExecutor) = Gas.getRefundForCancellation(request.input.executionFee);
 
         if (msg.sender == request.user) {
-            SafeTransferLib.safeTransferETH(msg.sender, refundAmount + amountForExecutor);
+            SafeTransferLib.sendEthNoRevert(
+                WETH, msg.sender, refundAmount + amountForExecutor, transferGasLimit, owner()
+            );
         } else {
-            WETH.sendEthNoRevert(request.user, refundAmount, transferGasLimit, owner());
-            SafeTransferLib.safeTransferETH(msg.sender, amountForExecutor);
+            SafeTransferLib.sendEthNoRevert(WETH, request.user, refundAmount, transferGasLimit, owner());
+            SafeTransferLib.sendEthNoRevert(WETH, msg.sender, amountForExecutor, transferGasLimit, owner());
         }
     }
 
@@ -298,5 +315,24 @@ contract PositionManager is IPositionManager, OwnableRoles, ReentrancyGuard {
         }
 
         IERC20(_collateralToken).safeTransfer(address(vault), transferAmount);
+    }
+
+    /**
+     * ===================================== Private Functions =====================================
+     */
+
+    /**
+     * @dev - An attacker may attempt to block-stuff, preventing their order from being executed
+     * unless price moves in a favourable direction, to create a risk-free trade.
+     *
+     * This vector is only possible, if they're able to cancel before execution is attempted.
+     *
+     * As a result, market orders are only cancellable if execution has been attempted, for both
+     * signing a price, and executing the trade.
+     */
+    function _validateCancellation(bytes32 _orderKey, bytes32 _requestKey) private view {
+        if (!priceFeed.fullfillmentAttempted(_requestKey) || !executionAttempted[_orderKey]) {
+            revert PositionManager_CancellationFailed();
+        }
     }
 }

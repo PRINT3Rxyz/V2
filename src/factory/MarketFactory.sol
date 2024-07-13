@@ -9,7 +9,6 @@ import {IPyth} from "@pyth/contracts/IPyth.sol";
 import {IVault} from "../markets/interfaces/IVault.sol";
 import {ITradeStorage} from "../positions/interfaces/ITradeStorage.sol";
 import {ITradeEngine} from "../positions/interfaces/ITradeEngine.sol";
-import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
 import {EnumerableMap} from "../libraries/EnumerableMap.sol";
 import {EnumerableSetLib} from "../libraries/EnumerableSetLib.sol";
 import {IPriceFeed} from "../oracle/interfaces/IPriceFeed.sol";
@@ -19,8 +18,10 @@ import {IFeeDistributor} from "../rewards/interfaces/IFeeDistributor.sol";
 import {IPositionManager} from "../router/interfaces/IPositionManager.sol";
 import {Pool} from "../markets/Pool.sol";
 import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
-import {Deployer} from "./Deployer.sol";
+import {DeployVault} from "./DeployVault.sol";
+import {DeployRewardTracker} from "./DeployRewardTracker.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
+import {IRewardTracker} from "../rewards/interfaces/IRewardTracker.sol";
 
 /**
  * Known issues:
@@ -39,8 +40,9 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     IPriceFeed priceFeed;
     IReferralStorage referralStorage;
     IFeeDistributor feeDistributor;
-    IGlobalRewardTracker rewardTracker;
     IPositionManager positionManager;
+
+    address router;
 
     IPyth private pyth;
 
@@ -66,6 +68,8 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     mapping(string ticker => MarketId[] marketIds) private marketsByTicker;
     // Required to determine which markets a user has created
     mapping(address user => MarketId[] marketIds) private marketsByUser;
+    // Only used by front-ends
+    CreatedMarket[] private allMarkets;
 
     bool private isInitialized;
     Pool.Config public defaultConfig;
@@ -118,10 +122,6 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         emit MarketFactoryInitialized(_priceFeed);
     }
 
-    function setRewardTracker(address _rewardTracker) external onlyOwner {
-        rewardTracker = IGlobalRewardTracker(_rewardTracker);
-    }
-
     function setFeedValidators(address _pyth) external onlyOwner {
         pyth = IPyth(_pyth);
     }
@@ -129,6 +129,10 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
     function setDefaultConfig(Pool.Config memory _defaultConfig) external onlyOwner {
         defaultConfig = _defaultConfig;
         emit DefaultConfigSet();
+    }
+
+    function setRouter(address _router) external onlyOwner {
+        router = _router;
     }
 
     function updateTransferGasLimit(uint256 _defaultTransferGasLimit) external onlyOwner {
@@ -253,6 +257,11 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         return marketsByUser[_user];
     }
 
+    /// @dev Only to be called from front-ends, do not call from contracts
+    function getAllMarkets() external view returns (CreatedMarket[] memory) {
+        return allMarkets;
+    }
+
     /**
      * =========================================== Private Functions ===========================================
      */
@@ -275,7 +284,15 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
         id = _params.input.toId();
         if (marketIds.contains(MarketId.unwrap(id))) revert MarketFactory_MarketExists();
 
-        address vault = Deployer.deployVault(_params, WETH, USDC);
+        address vault = DeployVault.run(_params, WETH, USDC, MarketId.unwrap(id));
+
+        address rewardTracker = DeployRewardTracker.run(
+            vault,
+            WETH,
+            USDC,
+            string(abi.encodePacked("Staked ", _params.input.marketTokenName)),
+            string(abi.encodePacked("s", _params.input.marketTokenSymbol))
+        );
 
         Pool.Config memory config = defaultConfig;
 
@@ -296,20 +313,26 @@ contract MarketFactory is IMarketFactory, OwnableRoles, ReentrancyGuard {
 
         ITradeStorage(tradeStorage).initializePool(id, vault);
 
-        rewardTracker.addDepositToken(vault);
+        IRewardTracker(rewardTracker).initialize(
+            address(feeDistributor), address(this), address(positionManager), address(router)
+        );
+
         feeDistributor.addVault(vault);
+        feeDistributor.addRewardTracker(rewardTracker);
 
         isMarket[id] = true;
         marketIds.add(MarketId.unwrap(id));
         marketsByTicker[_params.input.indexTokenTicker].push(id);
         marketsByUser[_params.requester].push(id);
         markets[cumulativeMarketIndex] = id;
+        allMarkets.push(CreatedMarket(id, _params.input.indexTokenTicker, vault, rewardTracker));
         ++cumulativeMarketIndex;
 
         // Transfer ownership of the new vault contract to the super-user
         OwnableRoles(vault).transferOwnership(owner());
+        OwnableRoles(rewardTracker).transferOwnership(owner());
 
-        emit MarketCreated(id, _params.input.indexTokenTicker, vault);
+        emit MarketCreated(id, _params.input.indexTokenTicker, vault, rewardTracker);
     }
 
     function _validateSecondaryStrategy(Input calldata _params) private view {

@@ -31,7 +31,7 @@ contract TradeEngine is OwnableRoles, ReentrancyGuard {
         bool isLong
     );
     event CollateralEdited(
-        bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, bool isIncrease
+        bytes32 indexed positionKey, bytes32 indexed marketId, uint256 collateralDelta, bool isIncrease, bool isLong
     );
     event PositionCreated(
         bytes32 indexed positionKey, bytes32 indexed marketId, address owner, uint256 sizeDelta, bool isLong

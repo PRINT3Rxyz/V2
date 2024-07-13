@@ -17,7 +17,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 import {MockUSDC} from "../../mocks/MockUSDC.sol";
 import {Position} from "src/positions/Position.sol";
 import {MarketUtils} from "src/markets/MarketUtils.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
 import {MockPriceFeed} from "../../mocks/MockPriceFeed.sol";
 import {MathUtils} from "src/libraries/MathUtils.sol";
@@ -46,7 +46,7 @@ contract TestRewardTracker is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;
@@ -138,7 +138,7 @@ contract TestRewardTracker is Test {
         vm.stopPrank();
         vault = market.getVault(marketId);
         tradeStorage = ITradeStorage(market.tradeStorage());
-        rewardTracker = GlobalRewardTracker(address(vault.rewardTracker()));
+        rewardTracker = RewardTracker(address(vault.rewardTracker()));
         // Call the deposit function with sufficient gas
         vm.prank(OWNER);
         router.createDeposit{value: 20_000.01 ether + 1 gwei}(marketId, OWNER, weth, 20_000 ether, 0.01 ether, 0, true);
@@ -184,7 +184,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, 0);
+        rewardTracker.stake(_amountToStake, 0);
         vm.stopPrank();
         // ensure the staked balance == staked amount
         assertEq(rewardTracker.balanceOf(USER), _amountToStake);
@@ -202,7 +202,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, 0);
+        rewardTracker.stake(_amountToStake, 0);
         vm.stopPrank();
         // ensure the staked balance == staked amount
         assertEq(rewardTracker.balanceOf(USER), _amountToStake);
@@ -212,18 +212,20 @@ contract TestRewardTracker is Test {
         vm.startPrank(USER);
         rewardTracker.approve(address(rewardTracker), amountToUnstake);
         bytes32[] memory empty;
-        rewardTracker.unstake(address(vault), amountToUnstake, empty);
+        rewardTracker.unstake(amountToUnstake, empty);
         vm.stopPrank();
         // ensure the staked balance == staked amount
         assertEq(rewardTracker.balanceOf(USER), _amountToStake - amountToUnstake);
     }
 
+    // @fail
     function test_tokens_per_interval_updates_with_fee_withdrawal() public setUpMarkets distributeFees {
-        (uint256 ethTokensPerInterval, uint256 usdcTokensPerInterval) = rewardTracker.tokensPerInterval(address(vault));
+        (uint256 ethTokensPerInterval, uint256 usdcTokensPerInterval) = rewardTracker.tokensPerInterval();
         assertNotEq(ethTokensPerInterval, 0);
         assertNotEq(usdcTokensPerInterval, 0);
     }
 
+    // @fail
     function test_users_can_claim_rewards_for_different_intervals(uint256 _amountToStake, uint256 _timeToPass)
         public
         setUpMarkets
@@ -236,7 +238,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, 0);
+        rewardTracker.stake(_amountToStake, 0);
         vm.stopPrank();
 
         _timeToPass = bound(_timeToPass, 1 minutes, 3650 days);
@@ -247,7 +249,7 @@ contract TestRewardTracker is Test {
         uint256 usdcBalance = IERC20(usdc).balanceOf(USER);
 
         vm.prank(USER);
-        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(address(vault), USER);
+        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(USER);
 
         assertNotEq(ethClaimed, 0, "Amount is Zero");
         assertNotEq(usdcClaimed, 0, "Amount is Zero");
@@ -268,7 +270,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, 0);
+        rewardTracker.stake(_amountToStake, 0);
         vm.stopPrank();
 
         _timeToPass = bound(_timeToPass, 1 minutes, 3650 days);
@@ -278,11 +280,11 @@ contract TestRewardTracker is Test {
         uint256 ethBalance = IERC20(weth).balanceOf(USER);
         uint256 usdcBalance = IERC20(usdc).balanceOf(USER);
 
-        rewardTracker.updateRewards(address(vault));
-        (uint256 claimableEth, uint256 claimableUsdc) = rewardTracker.claimable(USER, address(vault));
+        rewardTracker.updateRewards();
+        (uint256 claimableEth, uint256 claimableUsdc) = rewardTracker.claimable(USER);
 
         vm.prank(USER);
-        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(address(vault), USER);
+        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(USER);
 
         assertEq(claimableEth, ethClaimed, "Invalid Claimable");
         assertEq(claimableUsdc, usdcClaimed, "Invalid Claimable");
@@ -304,13 +306,13 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
         // ensure the staked balance == staked amount
         assertEq(rewardTracker.balanceOf(USER), _amountToStake);
         assertEq(rewardTracker.lockedAmounts(USER), _amountToStake);
 
-        GlobalRewardTracker.LockData memory lock = rewardTracker.getLockAtIndex(USER, 0);
+        RewardTracker.LockData memory lock = rewardTracker.getLockAtIndex(USER, 0);
         assertEq(lock.depositAmount, _amountToStake, "Lock Amount");
         assertEq(lock.owner, USER, "Lock Owner");
         assertEq(lock.lockedAt, block.timestamp, "Locked At Date");
@@ -331,7 +333,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
 
         bytes32 lockKey = rewardTracker.getLockKeyAtIndex(USER, 0);
@@ -340,7 +342,7 @@ contract TestRewardTracker is Test {
         // Try and unlock
         vm.prank(USER);
         vm.expectRevert();
-        rewardTracker.unstake(address(vault), _amountToStake, keys);
+        rewardTracker.unstake(_amountToStake, keys);
     }
 
     function test_users_cant_transfer_locked_tokens_before_the_lock_ends(
@@ -356,7 +358,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
 
         _amountToTransfer = bound(_amountToTransfer, 1, rewardTracker.balanceOf(USER));
@@ -383,7 +385,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
 
         bytes32 lockKey = rewardTracker.getLockKeyAtIndex(USER, 0);
@@ -394,13 +396,13 @@ contract TestRewardTracker is Test {
 
         // Try and unlock
         vm.prank(USER);
-        rewardTracker.unstake(address(vault), _amountToStake, keys);
+        rewardTracker.unstake(_amountToStake, keys);
 
         assertEq(rewardTracker.balanceOf(USER), 0);
         assertEq(rewardTracker.lockedAmounts(USER), 0);
         assertEq(vault.balanceOf(USER), _amountToStake);
 
-        GlobalRewardTracker.LockData memory lock = rewardTracker.getLockData(lockKey);
+        RewardTracker.LockData memory lock = rewardTracker.getLockData(lockKey);
 
         assertEq(lock.depositAmount, 0, "Lock Amount");
         assertEq(lock.owner, address(0), "Lock Owner");
@@ -408,6 +410,7 @@ contract TestRewardTracker is Test {
         assertEq(lock.unlockDate, 0, "Unlock Date");
     }
 
+    // @fail
     function test_users_can_still_claim_rewards_from_locked_tokens(uint256 _amountToStake, uint256 _duration)
         public
         setUpMarkets
@@ -421,7 +424,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
 
         skip(_duration);
@@ -430,7 +433,7 @@ contract TestRewardTracker is Test {
         uint256 usdcBalance = IERC20(usdc).balanceOf(USER);
 
         vm.prank(USER);
-        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(address(vault), USER);
+        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(USER);
 
         assertNotEq(ethClaimed, 0, "Amount is Zero");
         assertNotEq(usdcClaimed, 0, "Amount is Zero");
@@ -439,6 +442,7 @@ contract TestRewardTracker is Test {
         assertEq(IERC20(usdc).balanceOf(USER), usdcBalance + usdcClaimed, "Invalid Claim");
     }
 
+    // @fail
     function test_auto_staking_through_position_manager_still_lets_users_claim_rewards(
         uint256 _timeToSkip,
         bool _isLongToken
@@ -464,7 +468,7 @@ contract TestRewardTracker is Test {
         skip(_timeToSkip);
 
         vm.prank(USER);
-        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(address(vault), USER);
+        (uint256 ethClaimed, uint256 usdcClaimed) = rewardTracker.claim(USER);
 
         assertNotEq(ethClaimed, 0, "Amount is Zero");
         assertNotEq(usdcClaimed, 0, "Amount is Zero");
@@ -487,7 +491,7 @@ contract TestRewardTracker is Test {
 
         // Unstake
         vm.startPrank(USER);
-        rewardTracker.unstake(address(vault), rewardTracker.balanceOf(USER), new bytes32[](0));
+        rewardTracker.unstake(rewardTracker.balanceOf(USER), new bytes32[](0));
         vm.stopPrank();
 
         assertEq(rewardTracker.balanceOf(USER), 0);
@@ -506,7 +510,7 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, uint40(_duration));
+        rewardTracker.stake(_amountToStake, uint40(_duration));
         vm.stopPrank();
 
         // get the lock position
@@ -518,7 +522,7 @@ contract TestRewardTracker is Test {
         vm.stopPrank();
 
         // get the lock data
-        GlobalRewardTracker.LockData memory lock = rewardTracker.getLockData(lockKey);
+        RewardTracker.LockData memory lock = rewardTracker.getLockData(lockKey);
 
         assertEq(lock.unlockDate, block.timestamp + _duration + _extension, "Unlock Date");
     }
@@ -537,12 +541,12 @@ contract TestRewardTracker is Test {
         // stake them
         vm.startPrank(USER);
         vault.approve(address(rewardTracker), _amountToStake);
-        rewardTracker.stake(address(vault), _amountToStake, 0);
-        rewardTracker.lock(address(vault), _amountToLock, uint40(_duration));
+        rewardTracker.stake(_amountToStake, 0);
+        rewardTracker.lock(_amountToLock, uint40(_duration));
         vm.stopPrank();
 
         // get the lock position
-        GlobalRewardTracker.LockData memory lock = rewardTracker.getLockAtIndex(USER, 0);
+        RewardTracker.LockData memory lock = rewardTracker.getLockAtIndex(USER, 0);
         assertEq(lock.depositAmount, _amountToLock, "Lock Amount");
 
         // Try and unlock, and expect revert
@@ -551,13 +555,13 @@ contract TestRewardTracker is Test {
         keys[0] = lockKey;
         vm.prank(USER);
         vm.expectRevert();
-        rewardTracker.unstake(address(vault), _amountToStake, keys);
+        rewardTracker.unstake(_amountToStake, keys);
 
         skip(_duration);
 
         // Unlock the unlocked amount and it should pass
         vm.prank(USER);
-        rewardTracker.unstake(address(vault), _amountToStake - _amountToLock, keys);
+        rewardTracker.unstake(_amountToStake - _amountToLock, keys);
 
         // Balance should only remain as _amountToLock
         assertEq(rewardTracker.balanceOf(USER), _amountToLock);

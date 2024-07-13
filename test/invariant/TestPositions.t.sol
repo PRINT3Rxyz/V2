@@ -14,7 +14,7 @@ import {Router} from "src/router/Router.sol";
 import {IMarket} from "src/markets/interfaces/IMarket.sol";
 import {IVault} from "src/markets/interfaces/IVault.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {MarketId} from "src/types/MarketId.sol";
 import {MockUSDC} from "test/mocks/MockUSDC.sol";
 import {WETH} from "src/tokens/WETH.sol";
@@ -33,7 +33,7 @@ contract TestPositions is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;
@@ -137,7 +137,7 @@ contract TestPositions is Test {
         vm.label(address(vault), "vault");
         tradeStorage = ITradeStorage(market.tradeStorage());
         vm.label(address(tradeStorage), "tradeStorage");
-        rewardTracker = GlobalRewardTracker(address(vault.rewardTracker()));
+        rewardTracker = RewardTracker(address(vault.rewardTracker()));
         vm.label(address(rewardTracker), "rewardTracker");
         // Call the deposit function with sufficient gas
         vm.prank(OWNER);

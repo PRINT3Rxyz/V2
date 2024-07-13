@@ -15,7 +15,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 import {MockUSDC} from "../mocks/MockUSDC.sol";
 import {Position} from "src/positions/Position.sol";
 import {MarketUtils} from "src/markets/MarketUtils.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
 import {MathUtils} from "src/libraries/MathUtils.sol";
 import {MarketId} from "src/types/MarketId.sol";
@@ -38,7 +38,7 @@ contract TestPriceFeed is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;

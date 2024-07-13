@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-interface IGlobalRewardTracker {
+interface IRewardTracker {
     error RewardTracker_ActionDisbaled();
     error RewardTracker_InvalidAmount();
     error RewardTracker_ZeroAddress();
@@ -14,7 +14,7 @@ interface IGlobalRewardTracker {
     error RewardTracker_PositionAlreadyExists();
     error RewardTracker_InvalidTier();
 
-    event Claim(address receiver, uint256 wethAmount, uint256 usdcAmount);
+    event Claim(address indexed receiver, uint256 indexed wethAmount, uint256 indexed usdcAmount);
 
     struct StakeData {
         uint256 depositBalance;
@@ -35,22 +35,12 @@ interface IGlobalRewardTracker {
         address owner;
     }
 
-    function claim(address _depositToken, address _receiver)
-        external
-        returns (uint256 wethAmount, uint256 usdcAmount);
-    function claimable(address _account, address _depositToken)
-        external
-        view
-        returns (uint256 wethAmount, uint256 usdcAmount);
-    function getStakeData(address _account, address _depositToken) external view returns (StakeData memory);
-    function initialize(address _distributor) external;
-    function addDepositToken(address _depositToken) external;
-    function stakeForAccount(
-        address _fundingAccount,
-        address _account,
-        address _depositToken,
-        uint256 _amount,
-        uint40 _stakeDuration
-    ) external;
-    function unstakeForAccount(address _account, address _depositToken, uint256 _amount, address _receiver) external;
+    function claim(address _receiver) external returns (uint256 wethAmount, uint256 usdcAmount);
+    function claimable(address _account) external view returns (uint256 wethAmount, uint256 usdcAmount);
+    function getStakeData(address _account) external view returns (StakeData memory);
+    function initialize(address _distributor, address _marketFactory, address _positionManager, address _router)
+        external;
+    function stakeForAccount(address _fundingAccount, address _account, uint256 _amount, uint40 _stakeDuration)
+        external;
+    function unstakeForAccount(address _account, uint256 _amount, address _receiver) external;
 }

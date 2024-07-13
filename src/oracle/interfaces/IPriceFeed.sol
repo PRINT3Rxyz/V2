@@ -128,4 +128,5 @@ interface IPriceFeed {
     function isRequestValid(bytes32 _requestKey) external view returns (bool);
     function tokenDecimals(string memory _ticker) external view returns (uint8);
     function pyth() external view returns (address);
+    function fullfillmentAttempted(bytes32 _requestKey) external view returns (bool);
 }

@@ -130,7 +130,8 @@ contract LiquidationHandler is BaseHandler {
         }
         // Execute Request
         vm.prank(owner);
-        positionManager.executePosition(marketId, key, bytes32(0), owner);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), owner);
+        assertTrue(success, "Position execution failed");
 
         bytes32 positionKey = keccak256(abi.encode(input.ticker, owner, input.isLong));
 

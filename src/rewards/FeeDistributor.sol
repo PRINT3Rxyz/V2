@@ -30,17 +30,17 @@ contract FeeDistributor is ReentrancyGuard, OwnableRoles {
 
     uint32 private constant SECONDS_PER_WEEK = 1 weeks;
 
-    address public rewardTracker;
+    mapping(address => bool) isRewardTracker;
+
     address public weth;
     address public usdc;
 
     mapping(address vault => FeeParams) public accumulatedFees;
     mapping(address vault => bool) public isVault;
 
-    constructor(address _marketFactory, address _rewardTracker, address _weth, address _usdc) {
+    constructor(address _marketFactory, address _weth, address _usdc) {
         _initializeOwner(msg.sender);
         marketFactory = IMarketFactory(_marketFactory);
-        rewardTracker = _rewardTracker;
         weth = _weth;
         usdc = _usdc;
     }
@@ -48,6 +48,10 @@ contract FeeDistributor is ReentrancyGuard, OwnableRoles {
     /// @dev Used by MarketFactory to enable Vaults to accumulate fees
     function addVault(address _vault) external onlyRoles(_ROLE_0) {
         isVault[_vault] = true;
+    }
+
+    function addRewardTracker(address _rewardTracker) external onlyRoles(_ROLE_0) {
+        isRewardTracker[_rewardTracker] = true;
     }
 
     /**
@@ -79,7 +83,7 @@ contract FeeDistributor is ReentrancyGuard, OwnableRoles {
     }
 
     function distribute(address _vault) external returns (uint256 wethAmount, uint256 usdcAmount) {
-        if (msg.sender != rewardTracker) revert FeeDistributor_InvalidRewardTracker();
+        if (!isRewardTracker[msg.sender]) revert FeeDistributor_InvalidRewardTracker();
         (wethAmount, usdcAmount) = pendingRewards(_vault);
         if (wethAmount == 0 && usdcAmount == 0) return (wethAmount, usdcAmount);
 

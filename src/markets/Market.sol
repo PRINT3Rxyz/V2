@@ -15,6 +15,7 @@ import {Pool} from "./Pool.sol";
 import {Oracle} from "../oracle/Oracle.sol";
 import {MarketId, MarketIdLibrary} from "../types/MarketId.sol";
 import {Execution} from "../positions/Execution.sol";
+import {IRewardTracker} from "../rewards/interfaces/IRewardTracker.sol";
 
 contract Market is IMarket, OwnableRoles, ReentrancyGuard {
     using EnumerableSetLib for EnumerableSetLib.Bytes32Set;
@@ -129,7 +130,7 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
 
         marketStorage[_id].config = _config;
 
-        emit MarketConfigUpdated(_id);
+        emit MarketConfigUpdated(MarketId.unwrap(_id));
     }
 
     function updatePriceFeed(IPriceFeed _priceFeed) external onlyOwner {
@@ -280,6 +281,11 @@ contract Market is IMarket, OwnableRoles, ReentrancyGuard {
      */
     function getVault(MarketId _id) external view returns (IVault) {
         return globalState[_id].vault;
+    }
+
+    function getRewardTracker(MarketId _id) external view returns (IRewardTracker) {
+        IVault vault = globalState[_id].vault;
+        return vault.rewardTracker();
     }
 
     function getBorrowScale(MarketId _id) external view returns (uint256) {

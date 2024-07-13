@@ -73,6 +73,9 @@ contract MockPriceFeed is FunctionsClient, IPriceFeed {
     // Bi-directional to handle the case of invalidated requests
     mapping(bytes32 requestId => bytes32 requestKey) private idToKey;
     mapping(bytes32 requestKey => bytes32 requestId) private keyToId;
+
+    mapping(bytes32 requestKey => bool attempted) public fullfillmentAttempted;
+    
     /**
      * Used to count the number of failed price / pnl retrievals. If > MAX, the request is
      * invalidated and removed from storage.

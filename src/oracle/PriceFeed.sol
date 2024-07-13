@@ -62,6 +62,9 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     mapping(string ticker => mapping(uint48 blockTimestamp => Price priceResponse)) private prices;
     mapping(MarketId marketId => mapping(uint48 blockTimestamp => Pnl cumulativePnl)) public cumulativePnl;
 
+    mapping(string ticker => Price priceResponse) private lastPrice;
+    mapping(MarketId marketId => Pnl cumulativePnl) public lastPnl;
+
     mapping(string ticker => SecondaryStrategy) private strategies;
     mapping(string ticker => uint8) public tokenDecimals;
 
@@ -69,6 +72,9 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
     // Bi-directional to handle the case of invalidated requests
     mapping(bytes32 requestId => bytes32 requestKey) private idToKey;
     mapping(bytes32 requestKey => bytes32 requestId) private keyToId;
+
+    // Used to track whether a price has been attempted or not.
+    mapping(bytes32 requestKey => bool attempted) public fullfillmentAttempted;
 
     EnumerableMap.PriceMap private requestData;
     EnumerableSetLib.Bytes32Set private assetIds;
@@ -279,6 +285,8 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
         bytes32 requestKey = idToKey[requestId];
 
+        fullfillmentAttempted[requestKey] = true;
+
         if (err.length > 0) {
             // If it errors, remove the request from storage
             requestData.remove(requestId);
@@ -365,6 +373,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
             string memory ticker = price.ticker.fromSmallString();
 
             prices[ticker][price.timestamp] = price;
+            lastPrice[ticker] = price;
 
             emit PriceUpdated(price.ticker, price.timestamp, price.med, price.variance);
 
@@ -404,6 +413,7 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
         }
 
         cumulativePnl[marketId][pnl.timestamp] = pnl;
+        lastPnl[marketId] = pnl;
 
         emit PnlUpdated(MarketId.unwrap(marketId), pnl.timestamp, pnl.cumulativePnl);
     }
@@ -467,5 +477,13 @@ contract PriceFeed is FunctionsClient, ReentrancyGuard, OwnableRoles, IPriceFeed
 
     function getRequests() external view returns (bytes32[] memory) {
         return requestData.keys();
+    }
+
+    function getLastPrice(string memory _ticker) external view returns (Price memory) {
+        return lastPrice[_ticker];
+    }
+
+    function getLastPnl(MarketId _id) external view returns (Pnl memory) {
+        return lastPnl[_id];
     }
 }

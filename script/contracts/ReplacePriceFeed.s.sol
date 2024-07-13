@@ -10,6 +10,7 @@ import {PositionManager} from "src/router/PositionManager.sol";
 import {Router} from "src/router/Router.sol";
 import {PriceFeed, IPriceFeed} from "src/oracle/PriceFeed.sol";
 import {OwnableRoles} from "src/auth/OwnableRoles.sol";
+import {MarketIdLibrary} from "src/types/MarketId.sol";
 
 contract ReplacePriceFeed is Script {
     MarketFactory marketFactory = MarketFactory(0x516dC01DD2D76E3C3576621b28Eba05c7df61335);
@@ -18,6 +19,9 @@ contract ReplacePriceFeed is Script {
     TradeEngine tradeEngine = TradeEngine(0x3acB3747667268047f668d3dC0EfDdE9D1bE393E);
     PositionManager positionManager = PositionManager(payable(0xF7bC9A70A048AB4111D39f6893c1fE4fB4d5B51D));
     Router router = Router(payable(0x4d653708754BEe9eC3546A93729018C6Ef574d75));
+
+    // Fill old pricefeed here
+    PriceFeed oldPriceFeed = PriceFeed(address(0));
 
     address functionsRouter = 0xf9B8fc078197181C841c296C876945aaa425B278;
     address weth = 0x4200000000000000000000000000000000000006;
@@ -72,72 +76,63 @@ contract ReplacePriceFeed is Script {
         "return arr;";
     // Inline entire file -> Update File for Chain
     string cumulativePnlSource = 'const ethers = await import("npm:ethers@6.10.0");'
-        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xa918067e193D16bA9A5AB36270dDe2869892b276";'
-        'const MARKET_UTILS = "0xf70b53308d1691ef87f41092f3087d9389eff71a";'
-        'const PRICE_FEED = "0x4C3C29132894f2fB032242E52fb16B5A1ede5A04";'
+        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xF9271C5C66F1C29FB48Bcd6bba5350df80160887";'
+        'const MARKET_UTILS = "0xc67B238C1e4BA9392471087eC08b58774583927b";'
         "const PRECISION_DIVISOR = 10000000000000000000000000000n;" "const MARKET_ABI = [" "  {" '    type: "function",'
-        '    name: "getTickers",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
-        '    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],' '    stateMutability: "view",' "  },"
+        '    name: "getTicker",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
+        '    outputs: [{ name: "", type: "string", internalType: "string" }],' '    stateMutability: "view",' "  },"
         "];" "const MARKET_UTILS_ABI = [" "  {" '    type: "function",' '    name: "getMarketPnl",' "    inputs: ["
         '      { name: "_id", type: "bytes32", internalType: "MarketId" },'
         '      { name: "_market", type: "address", internalType: "address" },'
-        '      { name: "_ticker", type: "string", internalType: "string" },'
         '      { name: "_indexPrice", type: "uint256", internalType: "uint256" },'
-        '      { name: "_indexBaseUnit", type: "uint256", internalType: "uint256" },'
-        '      { name: "_isLong", type: "bool", internalType: "bool" },' "    ],"
-        '    outputs: [{ name: "netPnl", type: "int256", internalType: "int256" }],' '    stateMutability: "view",'
-        "  }," "];" "const PRICE_FEED_ABI = [" "  {" '    type: "function",' '    name: "tokenDecimals",'
-        '    inputs: [{ name: "ticker", type: "string", internalType: "string" }],'
-        '    outputs: [{ name: "", type: "uint8", internalType: "uint8" }],' '    stateMutability: "view",' "  }," "];"
-        "class FunctionsJsonRpcProvider extends ethers.JsonRpcProvider {" "  constructor(url) {" "    super(url);"
+        '      { name: "_isLong", type: "bool", internalType: "bool" }' "    ]," "    outputs: ["
+        '      { name: "netPnl", type: "int256", internalType: "int256" }' "    ]," '    stateMutability: "view"' "  },"
+        "];" "class FunctionsJsonRpcProvider extends ethers.JsonRpcProvider {" "  constructor(url) {" "    super(url);"
         "    this.url = url;" "  }" "  async _send(payload) {" "    let resp = await fetch(this.url, {"
         '      method: "POST",' '      headers: { "Content-Type": "application/json" },'
         "      body: JSON.stringify(payload)," "    });" "    return resp.json();" "  }" "}"
         "const provider = new FunctionsJsonRpcProvider(secrets.RPC_URL);"
         "const market = new ethers.Contract(MARKET, MARKET_ABI, provider);" "const marketUtils = new ethers.Contract("
-        "  MARKET_UTILS," "  MARKET_UTILS_ABI," "  provider" ");"
-        "const priceFeed = new ethers.Contract(PRICE_FEED, PRICE_FEED_ABI, provider);"
-        "const timestamp = Number(args[0]);" "const marketId = args[1];"
-        "const tickers = await market.getTickers(marketId);" "const getMedianPrice = async (ticker) => {"
-        "  const currentTime = Math.floor(Date.now() / 1000);" "  let cmcResponse;" "  let isLatest;"
-        "  if (currentTime - timestamp < 300) {" "    const cmcRequest = await Functions.makeHttpRequest({"
+        "  MARKET_UTILS," "  MARKET_UTILS_ABI," "  provider" ");" "const timestamp = Number(args[0]);"
+        "const marketId = args[1];" "const ticker = await market.getTicker(marketId);"
+        "const getMedianPrice = async (ticker) => {" "  const currentTime = Math.floor(Date.now() / 1000);"
+        "  let cmcResponse;" "  let isLatest;" "  if (currentTime - timestamp < 300) {"
+        "    const cmcRequest = await Functions.makeHttpRequest({"
         "      url: `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest`,"
-        '      headers: { "X-CMC_PRO_API_KEY": secrets.API_KEY },' "      params: { symbol: tickers }," "    });"
+        '      headers: { "X-CMC_PRO_API_KEY": secrets.API_KEY },' "      params: { symbol: ticker }," "    });"
         "    cmcResponse = await cmcRequest;" "    isLatest = true;" "  } else {"
         "    const cmcRequest = await Functions.makeHttpRequest({"
         "      url: `https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical`,"
         '      headers: { "X-CMC_PRO_API_KEY": secrets.API_KEY },'
-        "      params: { symbol: tickers, time_end: timestamp }," "    });" "    cmcResponse = await cmcRequest;"
+        "      params: { symbol: ticker, time_end: timestamp }," "    });" "    cmcResponse = await cmcRequest;"
         "    isLatest = false;" "  }" "  if (cmcResponse.status !== 200 || cmcResponse.data.status.error_code !== 0) {"
         '    throw new Error("GET Request to CMC API Failed");' "  }" "  const data = cmcResponse.data.data[ticker][0];"
         "  const quotes = isLatest ? data.quote : data.quotes;" "  let medianPrice;" "  if (isLatest) {"
         "    medianPrice =" "      BigInt(Math.round(quotes.USD.price * 100)) *" "      10000000000000000000000000000n;"
         "  } else {" "    medianPrice =" "      BigInt(Math.round(getQuote(quotes) * 100)) *"
-        "      10000000000000000000000000000n;" "  }" "  return medianPrice;" "};"
-        "const getBaseUnit = async (ticker) => {" "  const tokenDecimals = await priceFeed.tokenDecimals(ticker);"
-        "  const baseUnit = tokenDecimals" "    ? BigInt(10 ** tokenDecimals)" "    : 1000000000000000000n;"
-        "  return baseUnit;" "};" "const getQuote = (quotes) => {"
+        "      10000000000000000000000000000n;" "  }" "  return medianPrice;" "};" "const getQuote = (quotes) => {"
         "  const prices = quotes.map((quote) => quote.quote.USD.price);"
         "  const sortedPrices = prices.slice().sort((a, b) => a - b);" "  const medianPrice ="
         "    sortedPrices.length % 2 === 0" "      ? (sortedPrices[sortedPrices.length / 2 - 1] +"
         "          sortedPrices[sortedPrices.length / 2]) /" "        2"
         "      : sortedPrices[Math.floor(sortedPrices.length / 2)];" "  return medianPrice;" "};"
-        "const calculateCumulativePnl = async () => {" "  let cumulativePnl = 0n;" "  for (const ticker of tickers) {"
-        "    const medianPrice = await getMedianPrice(ticker);" "    const baseUnit = await getBaseUnit(ticker);"
-        "    const pnlLong = await marketUtils.getMarketPnl(" "      marketId," "      MARKET," "      ticker,"
-        "      medianPrice," "      baseUnit," "      true" "    );" "    cumulativePnl += pnlLong / PRECISION_DIVISOR;"
-        "    const pnlShort = await marketUtils.getMarketPnl(" "      marketId," "      MARKET," "      ticker,"
-        "      medianPrice," "      baseUnit," "      false" "    );"
-        "    cumulativePnl += pnlShort / PRECISION_DIVISOR;" "  }" "  return {" "    precision: 2,"
-        "    timestamp: Math.floor(Date.now() / 1000)," "    cumulativePnl: cumulativePnl," "  };" "};"
-        "const formatResult = (result) => {" "  const buffer = Buffer.alloc(23);"
-        "  buffer.writeUInt8(result.precision, 0);" "  buffer.writeUIntBE(result.timestamp, 1, 6);"
-        "  const pnlBuffer = Buffer.alloc(16);" "  let cumulativePnl = BigInt(result.cumulativePnl);"
-        "  if (cumulativePnl < 0) {" "    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl;" "  }"
+        "const calculateCumulativePnl = async () => {" "  let cumulativePnl = 0n;"
+        "  const medianPrice = await getMedianPrice(ticker);" "  const pnlLong = await marketUtils.getMarketPnl("
+        "    marketId," "    MARKET," "    medianPrice," "    true" "  );"
+        "  cumulativePnl += pnlLong / PRECISION_DIVISOR;" "  const pnlShort = await marketUtils.getMarketPnl("
+        "    marketId," "    MARKET," "    medianPrice," "    false" "  );"
+        "  cumulativePnl += pnlShort / PRECISION_DIVISOR;" "  " "  return {" "    precision: 2,"
+        "    timestamp: timestamp," "    cumulativePnl: cumulativePnl," "  };" "};" "const formatResult = (result) => {"
+        "  const buffer = Buffer.alloc(23);" "  buffer.writeUInt8(result.precision, 0);"
+        "  buffer.writeUIntBE(result.timestamp, 1, 6);" "  const pnlBuffer = Buffer.alloc(16);"
+        "  let cumulativePnl = BigInt(result.cumulativePnl);" "  if (cumulativePnl < 0) {"
+        "    cumulativePnl = BigInt(2) ** BigInt(127) + cumulativePnl;" "  }"
         "  pnlBuffer.writeBigInt64BE(cumulativePnl, 8);" "  buffer.set(pnlBuffer, 7);"
         '  return buffer.toString("hex");' "};" "const result = await calculateCumulativePnl();"
-        "const formattedResult = formatResult(result);" "const arr = new Uint8Array(formattedResult.length / 2);"
-        "for (let i = 0; i < arr.length; i++) {" "  arr[i] = parseInt(formattedResult.slice(i * 2, i * 2 + 2), 16);" "}"
+        'console.log("Result: ", result);' "const formattedResult = formatResult(result);"
+        "console.log(`Formatted result is ${formattedResult}`);"
+        "const arr = new Uint8Array(formattedResult.length / 2);" "for (let i = 0; i < arr.length; i++) {"
+        "  arr[i] = parseInt(formattedResult.slice(i * 2, i * 2 + 2), 16);" "}" 'console.log("Arr: ", arr);'
         "return arr;";
 
     bytes public encryptedSecretsUrls =
@@ -145,6 +140,7 @@ contract ReplacePriceFeed is Script {
 
     /// IMPORTANT -> NEED TO REPLACE CHAINLINK FUNCTIONS, AS HARD-CODED ADDRESSES WILL NEED TO
     /// BE SWITCHED TO THE NEW PRICE-FEED ETC.
+    // IMPORTANT -> NEED TO SUPPORT ALL ASSETS SUPPORTED BY THE OLD FEED OR STATE WILL BE INCONSISTENT
     function run() public {
         vm.startBroadcast();
 
@@ -153,7 +149,24 @@ contract ReplacePriceFeed is Script {
         newPriceFeed.initialize(
             priceUpdateSource, cumulativePnlSource, 185000, 300_000, 0.005 ether, sequencerUptimeFeed, 5 minutes
         );
+
         newPriceFeed.setEncryptedSecretUrls(encryptedSecretsUrls);
+
+        bytes32[] memory marketIds = marketFactory.getMarketIds();
+
+        // Temporarily grant MarketFactory role to deployer to replace all assets previously supported
+        OwnableRoles(address(newPriceFeed)).grantRoles(msg.sender, _ROLE_0);
+        for (uint256 i = 0; i < marketIds.length;) {
+            string memory ticker = market.getTicker(MarketIdLibrary.toId(marketIds[i]));
+            IPriceFeed.SecondaryStrategy memory secondaryStrategy = oldPriceFeed.getSecondaryStrategy(ticker);
+            uint8 decimals = oldPriceFeed.tokenDecimals(ticker);
+            newPriceFeed.supportAsset(ticker, secondaryStrategy, decimals);
+            unchecked {
+                ++i;
+            }
+        }
+        OwnableRoles(address(newPriceFeed)).revokeRoles(msg.sender, _ROLE_0);
+
         OwnableRoles(address(newPriceFeed)).grantRoles(address(marketFactory), _ROLE_0);
         OwnableRoles(address(newPriceFeed)).grantRoles(address(router), _ROLE_3);
 

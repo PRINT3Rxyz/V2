@@ -16,7 +16,7 @@ import {Gas} from "../libraries/Gas.sol";
 import {IPositionManager} from "./interfaces/IPositionManager.sol";
 import {IVault} from "../markets/interfaces/IVault.sol";
 import {Units} from "../libraries/Units.sol";
-import {IGlobalRewardTracker} from "../rewards/interfaces/IGlobalRewardTracker.sol";
+import {IRewardTracker} from "../rewards/interfaces/IRewardTracker.sol";
 import {MarketId} from "../types/MarketId.sol";
 import {Pool} from "../markets/Pool.sol";
 
@@ -34,17 +34,16 @@ contract Router is ReentrancyGuard, OwnableRoles {
     IERC20 private immutable USDC;
     IWETH private immutable WETH;
     IPositionManager private positionManager;
-    IGlobalRewardTracker private rewardTracker;
 
     uint64 private constant MAX_PERCENTAGE = 1e18;
 
-    event DepositRequestCreated(MarketId indexed marketId, address owner, address tokenIn, uint256 amountIn);
-    event WithdrawalRequestCreated(MarketId indexed marketId, address owner, address tokenOut, uint256 amountOut);
-    event PositionRequestCreated(MarketId indexed marketId, bytes32 indexed requestKey, bool _isLimit);
+    event DepositRequestCreated(bytes32 indexed marketId, address owner, address tokenIn, uint256 amountIn);
+    event WithdrawalRequestCreated(bytes32 indexed marketId, address owner, address tokenOut, uint256 amountOut);
+    event PositionRequestCreated(bytes32 indexed marketId, bytes32 indexed requestKey, bool _isLimit);
     event PriceUpdateRequested(bytes32 requestKey, string[] tickers, address requester);
-    event PnlRequested(bytes32 requestKey, MarketId indexed marketId, address requester);
-    event StopLossCreated(MarketId indexed marketId, bytes32 indexed requestKey, bytes32 indexed stopLossKey);
-    event TakeProfitCreated(MarketId indexed marketId, bytes32 indexed requestKey, bytes32 indexed takeProfitKey);
+    event PnlRequested(bytes32 requestKey, bytes32 indexed marketId, address requester);
+    event StopLossCreated(bytes32 indexed marketId, bytes32 indexed requestKey, bytes32 indexed stopLossKey);
+    event TakeProfitCreated(bytes32 indexed marketId, bytes32 indexed requestKey, bytes32 indexed takeProfitKey);
 
     error Router_InvalidOwner();
     error Router_InvalidAmountIn();
@@ -70,8 +69,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
         address _priceFeed,
         address _usdc,
         address _weth,
-        address _positionManager,
-        address _rewardTracker
+        address _positionManager
     ) {
         _initializeOwner(msg.sender);
         marketFactory = IMarketFactory(_marketFactory);
@@ -80,7 +78,6 @@ contract Router is ReentrancyGuard, OwnableRoles {
         USDC = IERC20(_usdc);
         WETH = IWETH(_weth);
         positionManager = IPositionManager(_positionManager);
-        rewardTracker = IGlobalRewardTracker(_rewardTracker);
     }
 
     receive() external payable {}
@@ -160,7 +157,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         if (excessValue > 0) SafeTransferLib.safeTransferETH(msg.sender, excessValue);
 
-        emit DepositRequestCreated(_id, _owner, _tokenIn, _amountIn);
+        emit DepositRequestCreated(MarketId.unwrap(_id), _owner, _tokenIn, _amountIn);
     }
 
     function createWithdrawal(
@@ -195,7 +192,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         IVault vault = market.getVault(_id);
 
-        rewardTracker.unstakeForAccount(msg.sender, address(vault), _marketTokenAmountIn, address(this));
+        vault.rewardTracker().unstakeForAccount(msg.sender, _marketTokenAmountIn, address(this));
 
         vault.safeTransfer(address(positionManager), _marketTokenAmountIn);
 
@@ -214,7 +211,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         _sendExecutionFee(_executionFee);
 
-        emit WithdrawalRequestCreated(_id, _owner, _tokenOut, _marketTokenAmountIn);
+        emit WithdrawalRequestCreated(MarketId.unwrap(_id), _owner, _tokenOut, _marketTokenAmountIn);
     }
 
     function createPositionRequest(
@@ -286,7 +283,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
         orderKey = tradeStorage.createOrderRequest(_id, request);
 
         // For each conditional, instead of greating a brand new request, we alter the original request in memory
-        if (request.requestType == Position.RequestType.CREATE_POSITION) {
+        if (action != Gas.Action.POSITION && request.requestType == Position.RequestType.CREATE_POSITION) {
             if (_conditionals.stopLossSet) _createStopLoss(_id, tradeStorage, request, _conditionals, orderKey);
 
             if (_conditionals.takeProfitSet) _createTakeProfit(_id, tradeStorage, request, _conditionals, orderKey);
@@ -294,7 +291,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
 
         _sendExecutionFee(totalExecutionFee - priceUpdateFee);
 
-        emit PositionRequestCreated(_id, orderKey, _trade.isLimit);
+        emit PositionRequestCreated(MarketId.unwrap(_id), orderKey, _trade.isLimit);
     }
 
     /**
@@ -332,19 +329,23 @@ contract Router is ReentrancyGuard, OwnableRoles {
     }
 
     // Used to request both pricing and pnl for a market action (deposit / withdrawal)
-    function requestDataForMarketAction(MarketId _id, bytes32 _key) external payable {
+    function requestExecutionData(MarketId _id, bytes32 _key) external payable {
         // Fetch the position request to ensure that it's valid
         Pool.Input memory request = market.getRequest(_id, _key);
         if (request.owner == address(0)) revert Router_InvalidRequest();
         // Estimate how much the functions fulfillment will cost and ensure that the user has paid enough
         uint256 updateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < updateFee * 2) revert Router_InvalidUpdateFee();
+
+        string memory ticker = market.getTicker(_id);
+
         // Request the price update
-        _requestPriceUpdate(updateFee, "");
+        _requestPriceUpdate(updateFee, ticker);
         // Request the pnl update
         _requestPnlUpdate(_id, updateFee);
     }
 
+    // Used to simply update the price of an asset
     function requestPricingForAsset(string calldata _ticker) external payable returns (bytes32 priceRequestKey) {
         uint256 priceUpdateFee = Oracle.estimateRequestCost(address(priceFeed));
         if (msg.value < priceUpdateFee) revert Router_InvalidUpdateFee();
@@ -365,7 +366,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
     function _requestPnlUpdate(MarketId _id, uint256 _fee) private returns (bytes32 requestKey) {
         requestKey = priceFeed.requestCumulativeMarketPnl{value: _fee}(_id, msg.sender);
 
-        emit PnlRequested(requestKey, _id, msg.sender);
+        emit PnlRequested(requestKey, MarketId.unwrap(_id), msg.sender);
     }
 
     function _validateRequestType(
@@ -411,7 +412,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
         // Set and Store the Stop Loss
         bytes32 stopLossKey = tradeStorage.setStopLoss(_id, _request, _requestKey);
 
-        emit StopLossCreated(_id, _requestKey, stopLossKey);
+        emit StopLossCreated(MarketId.unwrap(_id), _requestKey, stopLossKey);
     }
 
     function _createTakeProfit(
@@ -436,7 +437,7 @@ contract Router is ReentrancyGuard, OwnableRoles {
         // Set and Store the Take Profit
         bytes32 takeProfitKey = tradeStorage.setTakeProfit(_id, _request, _requestKey);
 
-        emit TakeProfitCreated(_id, _requestKey, takeProfitKey);
+        emit TakeProfitCreated(MarketId.unwrap(_id), _requestKey, takeProfitKey);
     }
 
     function _handleTokenTransfers(Position.Input memory _trade, uint256 _totalExecutionFee) private {

@@ -7,7 +7,7 @@ import {MarketId} from "../../types/MarketId.sol";
 
 interface IMarketFactory {
     event MarketFactoryInitialized(address priceStorage);
-    event MarketCreated(MarketId id, string ticker, address vault);
+    event MarketCreated(MarketId id, string ticker, address vault, address rewardTracker);
     event DefaultConfigSet();
     event MarketRequested(bytes32 indexed requestKey, string indexTokenTicker);
     event AssetRequested(string ticker);
@@ -45,6 +45,13 @@ interface IMarketFactory {
     struct PythData {
         bytes32 id;
         bytes32[] merkleProof;
+    }
+
+    struct CreatedMarket {
+        MarketId id;
+        string ticker;
+        address vault;
+        address rewardTracker;
     }
 
     function initialize(

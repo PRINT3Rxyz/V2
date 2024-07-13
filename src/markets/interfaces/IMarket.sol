@@ -37,7 +37,7 @@ interface IMarket {
      * ================ Events ================
      */
     event TokenAdded(string ticker);
-    event MarketConfigUpdated(MarketId indexed marketId);
+    event MarketConfigUpdated(bytes32 indexed marketId);
     event Market_Initialized();
     event FeesAccumulated(uint256 amount, bool _isLong);
     event RequestCanceled(bytes32 indexed key, address indexed caller);

@@ -15,7 +15,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 import {MockUSDC} from "../../mocks/MockUSDC.sol";
 import {Position} from "src/positions/Position.sol";
 import {MarketUtils} from "src/markets/MarketUtils.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
 import {MockPriceFeed} from "../../mocks/MockPriceFeed.sol";
 import {MarketId} from "src/types/MarketId.sol";
@@ -33,7 +33,7 @@ contract TestDepositWithdrawals is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;
@@ -125,7 +125,7 @@ contract TestDepositWithdrawals is Test {
         vm.stopPrank();
         vault = market.getVault(marketId);
         tradeStorage = ITradeStorage(market.tradeStorage());
-        rewardTracker = GlobalRewardTracker(address(vault.rewardTracker()));
+        rewardTracker = RewardTracker(address(vault.rewardTracker()));
         // Call the deposit function with sufficient gas
         vm.prank(OWNER);
         router.createDeposit{value: 20_000.01 ether + 1 gwei}(marketId, OWNER, weth, 20_000 ether, 0.01 ether, 0, true);

@@ -15,7 +15,7 @@ import {Oracle} from "src/oracle/Oracle.sol";
 import {MockUSDC} from "../../mocks/MockUSDC.sol";
 import {Position} from "src/positions/Position.sol";
 import {MarketUtils} from "src/markets/MarketUtils.sol";
-import {GlobalRewardTracker} from "src/rewards/GlobalRewardTracker.sol";
+import {RewardTracker} from "src/rewards/RewardTracker.sol";
 import {FeeDistributor} from "src/rewards/FeeDistributor.sol";
 import {MathUtils} from "src/libraries/MathUtils.sol";
 import {MockPriceFeed} from "../../mocks/MockPriceFeed.sol";
@@ -37,7 +37,7 @@ contract TestPositions is Test {
     IMarket market;
     IVault vault;
     FeeDistributor feeDistributor;
-    GlobalRewardTracker rewardTracker;
+    RewardTracker rewardTracker;
 
     address weth;
     address usdc;
@@ -150,7 +150,7 @@ contract TestPositions is Test {
         vm.label(address(vault), "vault");
         tradeStorage = ITradeStorage(market.tradeStorage());
         vm.label(address(tradeStorage), "tradeStorage");
-        rewardTracker = GlobalRewardTracker(address(vault.rewardTracker()));
+        rewardTracker = RewardTracker(address(vault.rewardTracker()));
         vm.label(address(rewardTracker), "rewardTracker");
         // Call the deposit function with sufficient gas
         vm.prank(OWNER);
@@ -282,7 +282,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
     }
 
     function test_increasing_existing_position(
@@ -354,7 +355,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         // Increase Position
 
@@ -388,7 +390,8 @@ contract TestPositions is Test {
         // Execute Request
         key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success2 = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success2, "Position execution failed");
     }
 
     function test_positions_are_wiped_once_executed(
@@ -458,7 +461,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         // Check Existence
         vm.expectRevert();
@@ -534,7 +538,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         input.sizeDelta = 0;
         input.collateralDelta = bound(_collateralDelta, 1e6, (collateralDelta * 9) / 10);
@@ -555,7 +560,8 @@ contract TestPositions is Test {
         // Execute Request
         key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success2 = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success2, "Position execution failed");
     }
 
     function test_executing_collateral_decrease(uint256 _sizeDelta, uint256 _leverage, bool _isLong, bool _shouldWrap)
@@ -624,7 +630,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         // Create a decrease request
         input.sizeDelta = 0;
@@ -639,7 +646,8 @@ contract TestPositions is Test {
         // Execute the request
         key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success2 = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success2, "Position execution failed");
     }
 
     function test_decreasing_positions(uint256 _sizeDelta, bool _isLong) public setUpMarkets {
@@ -690,7 +698,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         _sizeDelta = bound(_sizeDelta, 2e30, 5000e30);
 
@@ -719,7 +728,8 @@ contract TestPositions is Test {
 
         // Execute Request
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, orderKey, bytes32(0), OWNER);
+        bool success2 = positionManager.executePosition(marketId, orderKey, bytes32(0), OWNER);
+        assertTrue(success2, "Position execution failed");
     }
 
     function _shouldSkip(Position.Data memory position, uint256 _price, bytes32 orderKey)
@@ -801,7 +811,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success, "Position execution failed");
 
         // Pass some time
         skip(1 hours);
@@ -838,7 +849,8 @@ contract TestPositions is Test {
         // Execute Request
         key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        bool success2 = positionManager.executePosition(marketId, key, bytes32(0), OWNER);
+        assertTrue(success2, "Position execution failed");
 
         // Pass some time
         skip(1 hours);
@@ -924,7 +936,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        bool success = positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        assertTrue(success, "Position execution failed");
 
         bytes32 stopLossKey =
             tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _isLong))).stopLossKey;
@@ -1009,7 +1022,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        bool success = positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        assertTrue(success, "Position execution failed");
 
         bytes32 takeProfitKey =
             tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _isLong))).takeProfitKey;
@@ -1120,7 +1134,8 @@ contract TestPositions is Test {
         // Execute Request
         bytes32 key = tradeStorage.getOrderAtIndex(marketId, 0, false);
         vm.prank(OWNER);
-        positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        bool success = positionManager.executePosition(marketId, key, keccak256(abi.encode("PRICE REQUEST")), OWNER);
+        assertTrue(success, "Position execution failed");
 
         bytes32 stopLossKey =
             tradeStorage.getPosition(marketId, keccak256(abi.encode(ethTicker, OWNER, _params.isLong))).stopLossKey;
