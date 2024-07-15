@@ -47,8 +47,8 @@ contract UpdateChainlinkFunctions is Script {
         "return arr;";
     // Inline entire file -> Update File for Chain
     string cumulativePnlSource = 'const ethers = await import("npm:ethers@6.10.0");'
-        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0xF9271C5C66F1C29FB48Bcd6bba5350df80160887";'
-        'const MARKET_UTILS = "0xc67B238C1e4BA9392471087eC08b58774583927b";'
+        'const { Buffer } = await import("node:buffer");' 'const MARKET = "0x883BA4C0fe91f023CC7e67C20955cEDba20F2298";'
+        'const MARKET_UTILS = "0x64664E89D9aF9B4983bD7dF47E339756612A08c9";'
         "const PRECISION_DIVISOR = 10000000000000000000000000000n;" "const MARKET_ABI = [" "  {" '    type: "function",'
         '    name: "getTicker",' '    inputs: [{ name: "_id", type: "bytes32", internalType: "MarketId" }],'
         '    outputs: [{ name: "", type: "string", internalType: "string" }],' '    stateMutability: "view",' "  },"
@@ -106,7 +106,7 @@ contract UpdateChainlinkFunctions is Script {
         "  arr[i] = parseInt(formattedResult.slice(i * 2, i * 2 + 2), 16);" "}" 'console.log("Arr: ", arr);'
         "return arr;";
 
-    PriceFeed priceFeed = PriceFeed(0xC5795c700448427EdA6f6b8b4f7834500Ed79da0);
+    PriceFeed priceFeed = PriceFeed(0x415F3386a44Dc9442C8a8bf86E0Cd1AFAABE524e);
 
     function run() public {
         vm.broadcast();

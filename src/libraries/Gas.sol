@@ -45,7 +45,7 @@ library Gas {
             _estimateExecutionFee(priceFeed, positionManager, _action, _hasPnlRequest, _isLimit);
 
         if (_executionFee < estimatedFee + priceUpdateFee) {
-            revert Gas_InsufficientExecutionFee(_executionFee, estimatedFee);
+            revert Gas_InsufficientExecutionFee(_executionFee, estimatedFee + priceUpdateFee);
         }
     }
 

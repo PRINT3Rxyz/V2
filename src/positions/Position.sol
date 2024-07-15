@@ -206,7 +206,8 @@ library Position {
                 _request.input.isLong,
                 _request.input.isIncrease,
                 _request.input.limitPrice,
-                _request.requestType
+                _request.requestType,
+                _request.requestTimestamp
             )
         );
     }
